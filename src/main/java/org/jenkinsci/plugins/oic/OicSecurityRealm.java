@@ -955,8 +955,8 @@ public class OicSecurityRealm extends SecurityRealm {
             if (!"graph.microsoft.com".equalsIgnoreCase(parsed.getHost())) {
                 return false;
             }
-            String path = parsed.getPath();
-            return path != null && path.endsWith("/photo/$value");
+            String path = Strings.nullToEmpty(parsed.getPath());
+            return path.endsWith("/photo/$value");
         } catch (IllegalArgumentException e) {
             return false;
         }
