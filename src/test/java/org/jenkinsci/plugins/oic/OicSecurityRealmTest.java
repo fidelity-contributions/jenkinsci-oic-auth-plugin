@@ -257,6 +257,9 @@ class OicSecurityRealmTest {
     void testProtectedAvatarUrlDetection() {
         assertTrue(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com/v1.0/me/photo/$value"));
         assertTrue(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com/beta/me/photo/$value"));
+        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com"));
+        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com/v1.0/me/photo"));
+        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("http://[invalid"));
         assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://example.org/my-avatar.png"));
         assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl(null));
     }
