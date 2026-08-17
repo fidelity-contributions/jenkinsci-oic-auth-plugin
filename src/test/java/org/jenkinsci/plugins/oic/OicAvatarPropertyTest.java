@@ -1,0 +1,66 @@
+package org.jenkinsci.plugins.oic;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import hudson.model.User;
+import jakarta.servlet.ServletOutputStream;
+import java.util.Base64;
+import org.junit.jupiter.api.Test;
+import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
+import org.kohsuke.stapler.StaplerResponse2;
+
+@WithJenkins
+class OicAvatarPropertyTest {
+    @Test
+    void servesDataUrlForUserAvatar(JenkinsRule rule) throws Exception {
+        String dataUrl = dataUrl("image/png", new byte[] {1, 2, 3});
+        OicAvatarProperty property = new OicAvatarProperty(new OicAvatarProperty.AvatarImage(dataUrl));
+        User user = User.getById("avatar-user", true);
+
+        assertTrue(property.isHasAvatar());
+        assertTrue(new OicAvatarProperty.AvatarImage(dataUrl).isDataUrl());
+        assertEquals(user.getUrl() + "/oic-avatar/image", property.getAvatarUrlForUser(user));
+
+        StaplerResponse2 response = mock(StaplerResponse2.class);
+        ServletOutputStream output = mock(ServletOutputStream.class);
+        when(response.getOutputStream()).thenReturn(output);
+        property.doImage(response);
+
+        verify(response).setContentType("image/png");
+        verify(output).write(new byte[] {1, 2, 3});
+    }
+
+    @Test
+    void rejectsMalformedDataUrls() throws Exception {
+        assertFalse(new OicAvatarProperty.AvatarImage("not-a-data-url").isDataUrl());
+        assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,").isValid());
+        assertFalse(new OicAvatarProperty.AvatarImage("data:text/plain;base64,QQ==").isValid());
+        assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,not-base64").isValid());
+
+        OicAvatarProperty property = new OicAvatarProperty(new OicAvatarProperty.AvatarImage("data:image/png;base64,"));
+        assertNull(property.getAvatarUrl());
+        StaplerResponse2 response = mock(StaplerResponse2.class);
+        property.doImage(response);
+        verify(response).sendError(404);
+    }
+
+    @Test
+    void returnsDirectUrlForNonDataAvatar(JenkinsRule rule) {
+        OicAvatarProperty property = new OicAvatarProperty(
+                new OicAvatarProperty.AvatarImage("https://example.org/avatar.png"));
+
+        assertTrue(property.isHasAvatar());
+        assertEquals("https://example.org/avatar.png", property.getAvatarUrl());
+    }
+
+    private static String dataUrl(String contentType, byte[] content) {
+        return "data:" + contentType + ";base64," + Base64.getEncoder().encodeToString(content);
+    }
+}

@@ -1,0 +1,83 @@
+package org.jenkinsci.plugins.oic;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import hudson.util.Secret;
+import java.net.URI;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+
+class MicrosoftGraphAvatarFetcherTest {
+    @RegisterExtension
+    static WireMockExtension wireMock = WireMockExtension.newInstance().build();
+
+    @Test
+    void fetchesImageAsDataUrl() throws Exception {
+        wireMock.stubFor(get(urlPathEqualTo("/photo"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "image/PNG; charset=binary")
+                        .withBody(new byte[] {1, 2, 3})));
+
+        OicCredentials credentials = credentials("access-token");
+        String dataUrl = new MicrosoftGraphAvatarFetcher(
+                        URI.create(wireMock.url("/photo")).toURL(),
+                        ProxyAwareResourceRetriever.createProxyAwareResourceRetriver(false))
+                .fetchAsDataUrl(credentials);
+
+        assertEquals("data:image/png;base64,AQID", dataUrl);
+        wireMock.verify(getRequestedFor(urlPathEqualTo("/photo"))
+                .withHeader("Authorization", equalTo("Bearer access-token"))
+                .withHeader("Accept", equalTo("image/*")));
+    }
+
+    @Test
+    void returnsNullWhenAccessTokenIsMissing() throws Exception {
+        String dataUrl = new MicrosoftGraphAvatarFetcher(
+                        MicrosoftGraphAvatarFetcher.defaultEndpointUrl(),
+                        ProxyAwareResourceRetriever.createProxyAwareResourceRetriver(false))
+                .fetchAsDataUrl(null);
+
+        assertNull(dataUrl);
+    }
+
+    @Test
+    void returnsNullForNonSuccessfulOrEmptyResponses() throws Exception {
+        wireMock.stubFor(get(urlPathEqualTo("/missing")).willReturn(aResponse().withStatus(404)));
+        wireMock.stubFor(get(urlPathEqualTo("/empty")).willReturn(aResponse().withStatus(200)));
+
+        ProxyAwareResourceRetriever retriever = ProxyAwareResourceRetriever.createProxyAwareResourceRetriver(false);
+        assertNull(new MicrosoftGraphAvatarFetcher(URI.create(wireMock.url("/missing")).toURL(), retriever)
+                .fetchAsDataUrl(credentials("token")));
+        assertNull(new MicrosoftGraphAvatarFetcher(URI.create(wireMock.url("/empty")).toURL(), retriever)
+                .fetchAsDataUrl(credentials("token")));
+    }
+
+    @Test
+    void returnsNullForNonImageResponse() throws Exception {
+        wireMock.stubFor(get(urlPathEqualTo("/text"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "text/plain").withBody("text")));
+
+        String dataUrl = new MicrosoftGraphAvatarFetcher(
+                        URI.create(wireMock.url("/text")).toURL(),
+                        ProxyAwareResourceRetriever.createProxyAwareResourceRetriver(false))
+                .fetchAsDataUrl(credentials("token"));
+
+        assertNull(dataUrl);
+    }
+
+    @Test
+    void identifiesDefaultEndpoint() throws Exception {
+        assertTrue(MicrosoftGraphAvatarFetcher.defaultEndpointUrl().toString().endsWith("/photo/$value"));
+    }
+
+    private static OicCredentials credentials(String accessToken) {
+        return new OicCredentials(Secret.fromString(accessToken), null, null, null);
+    }
+}
