@@ -2,13 +2,17 @@ package org.jenkinsci.plugins.oic;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.model.Action;
 import hudson.model.User;
 import hudson.model.UserProperty;
 import hudson.model.UserPropertyDescriptor;
+import java.io.IOException;
+import java.util.Base64;
 import jenkins.security.csp.AvatarContributor;
 import org.kohsuke.accmod.restrictions.suppressions.SuppressRestrictedWarnings;
+import org.kohsuke.stapler.StaplerResponse2;
 
-public class OicAvatarProperty extends UserProperty {
+public class OicAvatarProperty extends UserProperty implements Action {
 
     private final AvatarImage avatarImage;
 
@@ -17,14 +21,21 @@ public class OicAvatarProperty extends UserProperty {
     }
 
     public String getAvatarUrl() {
-        if (isHasAvatar()) {
-            return getAvatarImageUrl();
-        }
-        return null;
+        return getAvatarUrlForUser(user);
     }
 
-    private String getAvatarImageUrl() {
-        return avatarImage.url;
+    public String getAvatarUrlForUser(User avatarUser) {
+        if (isHasAvatar()) {
+            if (avatarImage.isDataUrl() && avatarUser != null) {
+                String userUrl = avatarUser.getUrl();
+                if (!userUrl.endsWith("/")) {
+                    userUrl += "/";
+                }
+                return userUrl + getUrlName() + "/image";
+            }
+            return avatarImage.url;
+        }
+        return null;
     }
 
     public boolean isHasAvatar() {
@@ -41,6 +52,16 @@ public class OicAvatarProperty extends UserProperty {
 
     public String getUrlName() {
         return "oic-avatar";
+    }
+
+    public void doImage(StaplerResponse2 response) throws IOException {
+        AvatarData data = avatarImage == null ? null : parseDataUrl(avatarImage.url);
+        if (data == null) {
+            response.sendError(404);
+            return;
+        }
+        response.setContentType(data.contentType());
+        response.getOutputStream().write(data.bytes());
     }
 
     @Extension
@@ -68,6 +89,8 @@ public class OicAvatarProperty extends UserProperty {
      */
     @SuppressRestrictedWarnings(AvatarContributor.class)
     public static class AvatarImage {
+        static final int MAX_SIZE = 5 * 1024 * 1024;
+
         private final String url;
 
         public AvatarImage(String url) {
@@ -75,13 +98,40 @@ public class OicAvatarProperty extends UserProperty {
             AvatarContributor.allow(url);
         }
 
+        public boolean isDataUrl() {
+            return url != null && url.startsWith("data:");
+        }
+
         public boolean isValid() {
-            return url != null;
+            return url != null && (!isDataUrl() || parseDataUrl(url) != null);
         }
 
         private Object readResolve() {
             AvatarContributor.allow(url);
             return this;
+        }
+    }
+
+    private record AvatarData(String contentType, byte[] bytes) {}
+
+    private static AvatarData parseDataUrl(String dataUrl) {
+        if (dataUrl == null || !dataUrl.startsWith("data:")) {
+            return null;
+        }
+        int separator = dataUrl.indexOf(',');
+        if (separator <= 5 || separator == dataUrl.length() - 1) {
+            return null;
+        }
+        String metadata = dataUrl.substring(5, separator);
+        if (!metadata.contains(";base64") || !metadata.startsWith("image/")) {
+            return null;
+        }
+        String contentType = metadata.substring(0, metadata.indexOf(';'));
+        try {
+            byte[] bytes = Base64.getDecoder().decode(dataUrl.substring(separator + 1));
+            return bytes.length > AvatarImage.MAX_SIZE ? null : new AvatarData(contentType, bytes);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 }

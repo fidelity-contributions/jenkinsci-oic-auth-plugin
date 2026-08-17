@@ -1,4 +1,3 @@
-allowMicrosoftGraphAvatar: true
 avatarFieldName: "avatarFieldName"
 clientId: "clientId"
 disableSslVerification: true

@@ -171,6 +171,7 @@ public class OicSecurityRealm extends SecurityRealm {
     private static final String ID_TOKEN_REQUEST_ATTRIBUTE = "oic-id-token";
     private static final String NO_SECRET = "none";
     private static final String SESSION_POST_LOGIN_REDIRECT_URL_KEY = "oic-redirect-on-login-url";
+    private static final String MICROSOFT_GRAPH_AVATAR_URL = "https://graph.microsoft.com/v1.0/me/photo/$value";
 
     private final String clientId;
     private final Secret clientSecret;
@@ -211,7 +212,6 @@ public class OicSecurityRealm extends SecurityRealm {
     private String groupsFieldName = null;
     private transient Expression<Object> groupsFieldExpr = null;
     private String avatarFieldName = "picture";
-    private boolean allowMicrosoftGraphAvatar = false;
     private transient Expression<Object> avatarFieldExpr = null;
     private transient String simpleGroupsFieldName = null;
     private transient String nestedGroupFieldName = null;
@@ -528,10 +528,6 @@ public class OicSecurityRealm extends SecurityRealm {
         return avatarFieldName;
     }
 
-    public boolean isAllowMicrosoftGraphAvatar() {
-        return allowMicrosoftGraphAvatar;
-    }
-
     @Override
     public IdStrategy getGroupIdStrategy() {
         if (groupIdStrategy != null) {
@@ -602,7 +598,11 @@ public class OicSecurityRealm extends SecurityRealm {
         OIDCProviderMetadata oidcProviderMetadata = serverConfiguration.toProviderMetadata();
         if (oidcProviderMetadata.getScopes() != null) {
             // auto configuration does not need to supply scopes
-            conf.setScope(oidcProviderMetadata.getScopes().toString());
+            String scopes = oidcProviderMetadata.getScopes().toString();
+            if (isMicrosoftEntraProvider() && !scopes.contains("User.Read")) {
+                scopes += " User.Read";
+            }
+            conf.setScope(scopes);
         }
         conf.setResourceRetriever(getResourceRetriever());
         return conf;
@@ -688,11 +688,6 @@ public class OicSecurityRealm extends SecurityRealm {
     public void setAvatarFieldName(String avatarFieldName) {
         this.avatarFieldName = Util.fixNull(Util.fixEmptyAndTrim(avatarFieldName));
         this.avatarFieldExpr = compileJMESPath(this.avatarFieldName, "avatar field");
-    }
-
-    @DataBoundSetter
-    public void setAllowMicrosoftGraphAvatar(boolean allowMicrosoftGraphAvatar) {
-        this.allowMicrosoftGraphAvatar = allowMicrosoftGraphAvatar;
     }
 
     @DataBoundSetter
@@ -895,14 +890,13 @@ public class OicSecurityRealm extends SecurityRealm {
 
         // Set avatar if possible
         String avatarUrl = determineStringField(avatarFieldExpr, idToken, userInfo);
-        if (!allowMicrosoftGraphAvatar && isLikelyProtectedAvatarUrl(avatarUrl)) {
-            LOGGER.finest("Ignoring protected avatar URL for user " + user.getId() + ": " + avatarUrl);
-            avatarUrl = null;
-        }
         OicAvatarProperty oicAvatarProperty;
-        if (avatarUrl != null) {
+        if (avatarUrl == null && isMicrosoftEntraProvider()) {
+            avatarUrl = MICROSOFT_GRAPH_AVATAR_URL;
+        }
+        OicAvatarProperty.AvatarImage avatarImage = createAvatarImage(avatarUrl, credentials);
+        if (avatarImage != null) {
             LOGGER.finest("Avatar url is: " + avatarUrl);
-            OicAvatarProperty.AvatarImage avatarImage = new OicAvatarProperty.AvatarImage(avatarUrl);
             oicAvatarProperty = new OicAvatarProperty(avatarImage);
         } else {
             LOGGER.finest(() -> "No avatar URL found for user " + user.getId() + ". Ensure to remove existing avatar");
@@ -915,6 +909,36 @@ public class OicSecurityRealm extends SecurityRealm {
         OicUserDetails userDetails = new OicUserDetails(userName, grantedAuthorities);
         SecurityListener.fireAuthenticated2(userDetails);
         SecurityListener.fireLoggedIn(userName);
+    }
+
+    private OicAvatarProperty.AvatarImage createAvatarImage(String avatarUrl, OicCredentials credentials) {
+        if (avatarUrl == null) {
+            return null;
+        }
+        if (!isLikelyProtectedAvatarUrl(avatarUrl)) {
+            return new OicAvatarProperty.AvatarImage(avatarUrl);
+        }
+        try {
+            String dataUrl = new MicrosoftGraphAvatarFetcher(
+                            URI.create(avatarUrl).toURL(), getResourceRetriever())
+                    .fetchAsDataUrl(credentials);
+            return dataUrl == null ? null : new OicAvatarProperty.AvatarImage(dataUrl);
+        } catch (MalformedURLException e) {
+            LOGGER.log(Level.FINE, "Invalid Microsoft Graph avatar URL", e);
+            return null;
+        }
+    }
+
+    private boolean isMicrosoftEntraProvider() {
+        URI issuer =
+                URI.create(serverConfiguration.toProviderMetadata().getIssuer().toString());
+        if (issuer == null || issuer.getHost() == null) {
+            return false;
+        }
+        String host = issuer.getHost().toLowerCase();
+        return host.endsWith(".microsoftonline.com")
+                || host.equals("login.microsoft.com")
+                || host.equals("sts.windows.net");
     }
 
     private String determineStringField(Expression<Object> fieldExpr, JWT idToken, Map<String, Object> userInfo)
@@ -952,7 +976,8 @@ public class OicSecurityRealm extends SecurityRealm {
         }
         try {
             URI parsed = URI.create(avatarUrl);
-            if (!"graph.microsoft.com".equalsIgnoreCase(parsed.getHost())) {
+            if (!"https".equalsIgnoreCase(parsed.getScheme())
+                    || !"graph.microsoft.com".equalsIgnoreCase(parsed.getHost())) {
                 return false;
             }
             String path = Strings.nullToEmpty(parsed.getPath());
