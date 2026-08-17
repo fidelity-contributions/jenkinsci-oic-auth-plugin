@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import hudson.model.User;
 import jakarta.servlet.ServletOutputStream;
+import java.lang.reflect.Method;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
@@ -51,6 +52,12 @@ class OicAvatarPropertyTest {
         emptyProperty.doImage(emptyResponse);
         verify(emptyResponse).sendError(404);
 
+        OicAvatarProperty nullImageProperty = new OicAvatarProperty(new OicAvatarProperty.AvatarImage(null));
+        assertFalse(nullImageProperty.isHasAvatar());
+        StaplerResponse2 nullImageResponse = mock(StaplerResponse2.class);
+        nullImageProperty.doImage(nullImageResponse);
+        verify(nullImageResponse).sendError(404);
+
         OicAvatarProperty property = new OicAvatarProperty(new OicAvatarProperty.AvatarImage("data:image/png;base64,"));
         assertNull(property.getAvatarUrl());
         StaplerResponse2 response = mock(StaplerResponse2.class);
@@ -65,6 +72,15 @@ class OicAvatarPropertyTest {
 
         assertTrue(property.isHasAvatar());
         assertEquals("https://example.org/avatar.png", property.getAvatarUrl());
+    }
+
+    @Test
+    void preservesAvatarImageDuringDeserialization(JenkinsRule rule) throws Exception {
+        OicAvatarProperty.AvatarImage image = new OicAvatarProperty.AvatarImage("https://example.org/avatar.png");
+        Method readResolve = OicAvatarProperty.AvatarImage.class.getDeclaredMethod("readResolve");
+        readResolve.setAccessible(true);
+
+        assertEquals(image, readResolve.invoke(image));
     }
 
     private static String dataUrl(String contentType, byte[] content) {
