@@ -37,14 +37,30 @@ class OicAvatarPropertyTest {
         verify(response).setContentType("image/png");
         verify(output).write(new byte[] {1, 2, 3});
         assertEquals(dataUrl, property.getAvatarUrlForUser(null));
+
+        User userWithTrailingSlash = mock(User.class);
+        when(userWithTrailingSlash.getUrl()).thenReturn("user/avatar-user/");
+        assertEquals("user/avatar-user/oic-avatar/image", property.getAvatarUrlForUser(userWithTrailingSlash));
     }
 
     @Test
     void rejectsMalformedDataUrls() throws Exception {
         assertFalse(new OicAvatarProperty.AvatarImage("not-a-data-url").isDataUrl());
+        OicAvatarProperty nonDataProperty = new OicAvatarProperty(new OicAvatarProperty.AvatarImage("not-a-data-url"));
+        StaplerResponse2 nonDataResponse = mock(StaplerResponse2.class);
+        nonDataProperty.doImage(nonDataResponse);
+        verify(nonDataResponse).sendError(404);
+        OicAvatarProperty shortDataProperty = new OicAvatarProperty(new OicAvatarProperty.AvatarImage("data:,"));
+        StaplerResponse2 shortDataResponse = mock(StaplerResponse2.class);
+        shortDataProperty.doImage(shortDataResponse);
+        verify(shortDataResponse).sendError(404);
+        assertFalse(new OicAvatarProperty.AvatarImage("data:image/png,QQ==").isValid());
         assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,").isValid());
         assertFalse(new OicAvatarProperty.AvatarImage("data:text/plain;base64,QQ==").isValid());
         assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,not-base64").isValid());
+
+        String oversizedData = Base64.getEncoder().encodeToString(new byte[OicAvatarProperty.AvatarImage.MAX_SIZE + 1]);
+        assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64," + oversizedData).isValid());
 
         OicAvatarProperty emptyProperty = new OicAvatarProperty(null);
         assertFalse(emptyProperty.isHasAvatar());

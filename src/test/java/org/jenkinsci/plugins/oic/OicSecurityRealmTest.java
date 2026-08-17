@@ -11,11 +11,17 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import hudson.model.User;
 import hudson.util.Secret;
+import java.io.ByteArrayInputStream;
 import java.lang.reflect.Method;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collection;
 import java.util.List;
@@ -281,6 +287,19 @@ class OicSecurityRealmTest {
     }
 
     @Test
+    void preservesExistingUserReadScopeForMicrosoftEntraIssuer(JenkinsRule jenkinsRule) throws Exception {
+        TestRealm realm = new TestRealm.Builder(wireMock)
+                .WithMinimalDefaults()
+                        .WithIssuer("https://tenant.login.microsoftonline.com/")
+                        .WithScopes("openid email User.Read")
+                        .build();
+
+        assertEquals(
+                "openid email User.Read",
+                realm.buildOidcClient().getConfiguration().getScope().toString());
+    }
+
+    @Test
     void recognizesMicrosoftEntraIssuerAndDelegatesGraphAvatarFetch(JenkinsRule jenkinsRule) throws Exception {
         TestRealm realm = new TestRealm.Builder(wireMock)
                 .WithMinimalDefaults()
@@ -295,6 +314,48 @@ class OicSecurityRealmTest {
                 OicSecurityRealm.class.getDeclaredMethod("createAvatarImage", String.class, OicCredentials.class);
         createAvatarImage.setAccessible(true);
         assertNull(createAvatarImage.invoke(realm, "https://graph.microsoft.com/v1.0/me/photo/$value", null));
+    }
+
+    @Test
+    void createsAvatarImageWhenGraphFetchSucceeds(JenkinsRule jenkinsRule) throws Exception {
+        TestRealm realm = org.mockito.Mockito.spy(
+                new TestRealm.Builder(wireMock).WithMinimalDefaults().build());
+        ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
+        when(connection.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[] {1}));
+        when(connection.getContentType()).thenReturn("image/png");
+        when(retriever.openHTTPConnection(any())).thenReturn(connection);
+        doReturn(retriever).when(realm).getResourceRetriever();
+
+        Method createAvatarImage =
+                OicSecurityRealm.class.getDeclaredMethod("createAvatarImage", String.class, OicCredentials.class);
+        createAvatarImage.setAccessible(true);
+        Object avatarImage = createAvatarImage.invoke(
+                realm,
+                "https://graph.microsoft.com/v1.0/me/photo/$value",
+                new OicCredentials("token", null, null, 3600L, 0L, 0L));
+
+        assertNotNull(avatarImage);
+    }
+
+    @Test
+    void recognizesStsWindowsIssuerAndRejectsHttpGraphUrl(JenkinsRule jenkinsRule) throws Exception {
+        TestRealm realm = new TestRealm.Builder(wireMock)
+                .WithMinimalDefaults().WithIssuer("https://sts.windows.net/").build();
+        Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
+        isEntra.setAccessible(true);
+        assertTrue((Boolean) isEntra.invoke(realm));
+        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("http://graph.microsoft.com/v1.0/me/photo/$value"));
+    }
+
+    @Test
+    void returnsFalseForIssuerWithoutHost(JenkinsRule jenkinsRule) throws Exception {
+        TestRealm realm = new TestRealm.Builder(wireMock)
+                .WithMinimalDefaults().WithIssuer("issuer").build();
+        Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
+        isEntra.setAccessible(true);
+        assertFalse((Boolean) isEntra.invoke(realm));
     }
 
     @Test

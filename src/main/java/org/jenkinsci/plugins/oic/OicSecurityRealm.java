@@ -911,22 +911,17 @@ public class OicSecurityRealm extends SecurityRealm {
         SecurityListener.fireLoggedIn(userName);
     }
 
-    private OicAvatarProperty.AvatarImage createAvatarImage(String avatarUrl, OicCredentials credentials) {
+    private OicAvatarProperty.AvatarImage createAvatarImage(String avatarUrl, OicCredentials credentials)
+            throws IOException {
         if (avatarUrl == null) {
             return null;
         }
         if (!isLikelyProtectedAvatarUrl(avatarUrl)) {
             return new OicAvatarProperty.AvatarImage(avatarUrl);
         }
-        try {
-            String dataUrl = new MicrosoftGraphAvatarFetcher(
-                            URI.create(avatarUrl).toURL(), getResourceRetriever())
-                    .fetchAsDataUrl(credentials);
-            return dataUrl == null ? null : new OicAvatarProperty.AvatarImage(dataUrl);
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.FINE, "Invalid Microsoft Graph avatar URL", e);
-            return null;
-        }
+        String dataUrl = new MicrosoftGraphAvatarFetcher(URI.create(avatarUrl).toURL(), getResourceRetriever())
+                .fetchAsDataUrl(credentials);
+        return dataUrl == null ? null : new OicAvatarProperty.AvatarImage(dataUrl);
     }
 
     private boolean isMicrosoftEntraProvider() {
