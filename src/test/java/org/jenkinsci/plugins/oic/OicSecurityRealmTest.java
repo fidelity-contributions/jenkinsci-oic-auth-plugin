@@ -268,52 +268,52 @@ class OicSecurityRealmTest {
         assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl(null));
     }
 
-        @Test
-        void addsUserReadScopeForMicrosoftEntraIssuer(JenkinsRule jenkinsRule) throws Exception {
-                TestRealm realm = new TestRealm.Builder(wireMock)
-                                .WithMinimalDefaults()
-                                .WithIssuer("https://tenant.login.microsoftonline.com/")
-                                .WithScopes("openid email")
-                                .build();
+    @Test
+    void addsUserReadScopeForMicrosoftEntraIssuer(JenkinsRule jenkinsRule) throws Exception {
+        TestRealm realm = new TestRealm.Builder(wireMock)
+                .WithMinimalDefaults()
+                        .WithIssuer("https://tenant.login.microsoftonline.com/")
+                        .WithScopes("openid email")
+                        .build();
 
-                assertTrue(realm.buildOidcClient().getConfiguration().getScope().toString().contains("User.Read"));
-        }
+        assertTrue(
+                realm.buildOidcClient().getConfiguration().getScope().toString().contains("User.Read"));
+    }
 
-        @Test
-        void recognizesMicrosoftEntraIssuerAndDelegatesGraphAvatarFetch(JenkinsRule jenkinsRule) throws Exception {
-                TestRealm realm = new TestRealm.Builder(wireMock)
-                                .WithMinimalDefaults()
-                                .WithIssuer("https://login.microsoft.com/")
-                                .build();
+    @Test
+    void recognizesMicrosoftEntraIssuerAndDelegatesGraphAvatarFetch(JenkinsRule jenkinsRule) throws Exception {
+        TestRealm realm = new TestRealm.Builder(wireMock)
+                .WithMinimalDefaults()
+                        .WithIssuer("https://login.microsoft.com/")
+                        .build();
 
-                Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
-                isEntra.setAccessible(true);
-                assertTrue((Boolean) isEntra.invoke(realm));
+        Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
+        isEntra.setAccessible(true);
+        assertTrue((Boolean) isEntra.invoke(realm));
 
-                Method createAvatarImage = OicSecurityRealm.class.getDeclaredMethod(
-                                "createAvatarImage", String.class, OicCredentials.class);
-                createAvatarImage.setAccessible(true);
-                assertNull(createAvatarImage.invoke(
-                                realm, "https://graph.microsoft.com/v1.0/me/photo/$value", null));
-        }
+        Method createAvatarImage =
+                OicSecurityRealm.class.getDeclaredMethod("createAvatarImage", String.class, OicCredentials.class);
+        createAvatarImage.setAccessible(true);
+        assertNull(createAvatarImage.invoke(realm, "https://graph.microsoft.com/v1.0/me/photo/$value", null));
+    }
 
-            @Test
-            void usesGraphEndpointWhenEntraUserHasNoPictureClaim(JenkinsRule jenkinsRule) throws Exception {
-                TestRealm realm = new TestRealm.Builder(wireMock)
-                        .WithMinimalDefaults()
+    @Test
+    void usesGraphEndpointWhenEntraUserHasNoPictureClaim(JenkinsRule jenkinsRule) throws Exception {
+        TestRealm realm = new TestRealm.Builder(wireMock)
+                .WithMinimalDefaults()
                         .WithIssuer("https://tenant.login.microsoftonline.com/")
                         .build();
-                Method loginAndSetUserData = OicSecurityRealm.class.getDeclaredMethod(
-                        "loginAndSetUserData", String.class, com.nimbusds.jwt.JWT.class, Map.class, OicCredentials.class);
-                loginAndSetUserData.setAccessible(true);
+        Method loginAndSetUserData = OicSecurityRealm.class.getDeclaredMethod(
+                "loginAndSetUserData", String.class, com.nimbusds.jwt.JWT.class, Map.class, OicCredentials.class);
+        loginAndSetUserData.setAccessible(true);
 
-                loginAndSetUserData.invoke(
-                        realm,
-                        "entra-avatar-user",
-                        null,
-                        Map.of("sub", "entra-avatar-user"),
-                        new OicCredentials(null, null, null, null, null, null));
+        loginAndSetUserData.invoke(
+                realm,
+                "entra-avatar-user",
+                null,
+                Map.of("sub", "entra-avatar-user"),
+                new OicCredentials(null, null, null, null, null, null));
 
-                assertTrue(User.getById("entra-avatar-user", false).getProperty(OicAvatarProperty.class) != null);
-            }
+        assertTrue(User.getById("entra-avatar-user", false).getProperty(OicAvatarProperty.class) != null);
+    }
 }
