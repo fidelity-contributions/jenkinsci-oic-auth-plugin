@@ -14,8 +14,11 @@ import static org.mockito.Mockito.when;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import hudson.util.Secret;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -87,6 +90,36 @@ class MicrosoftGraphAvatarFetcherTest {
                                 .fetchAsDataUrl(credentials("token"));
 
                 assertEquals("data:image/jpeg;base64,AQ==", dataUrl);
+        }
+
+        @Test
+        void defaultsMissingContentTypeOnConnectionToJpeg() throws Exception {
+                HttpURLConnection connection = mock(HttpURLConnection.class);
+                when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
+                when(connection.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[] {1}));
+                when(connection.getContentType()).thenReturn(null);
+                ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
+                when(retriever.openHTTPConnection(any())).thenReturn(connection);
+
+                String dataUrl = new MicrosoftGraphAvatarFetcher(
+                                                MicrosoftGraphAvatarFetcher.defaultEndpointUrl(), retriever)
+                                .fetchAsDataUrl(credentials("token"));
+
+                assertEquals("data:image/jpeg;base64,AQ==", dataUrl);
+        }
+
+        @Test
+        void rejectsOversizedImage() throws Exception {
+                HttpURLConnection connection = mock(HttpURLConnection.class);
+                when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
+                when(connection.getInputStream())
+                                .thenReturn(new ByteArrayInputStream(new byte[OicAvatarProperty.AvatarImage.MAX_SIZE + 1]));
+                ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
+                when(retriever.openHTTPConnection(any())).thenReturn(connection);
+
+                assertNull(new MicrosoftGraphAvatarFetcher(
+                                                new URL(MicrosoftGraphAvatarFetcher.DEFAULT_PHOTO_ENDPOINT), retriever)
+                                .fetchAsDataUrl(credentials("token")));
         }
 
         @Test
