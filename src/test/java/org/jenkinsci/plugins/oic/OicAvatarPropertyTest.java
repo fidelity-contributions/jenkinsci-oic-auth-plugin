@@ -35,6 +35,7 @@ class OicAvatarPropertyTest {
 
         verify(response).setContentType("image/png");
         verify(output).write(new byte[] {1, 2, 3});
+        assertEquals(dataUrl, property.getAvatarUrlForUser(null));
     }
 
     @Test
@@ -43,6 +44,12 @@ class OicAvatarPropertyTest {
         assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,").isValid());
         assertFalse(new OicAvatarProperty.AvatarImage("data:text/plain;base64,QQ==").isValid());
         assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,not-base64").isValid());
+
+        OicAvatarProperty emptyProperty = new OicAvatarProperty(null);
+        assertFalse(emptyProperty.isHasAvatar());
+        StaplerResponse2 emptyResponse = mock(StaplerResponse2.class);
+        emptyProperty.doImage(emptyResponse);
+        verify(emptyResponse).sendError(404);
 
         OicAvatarProperty property = new OicAvatarProperty(new OicAvatarProperty.AvatarImage("data:image/png;base64,"));
         assertNull(property.getAvatarUrl());

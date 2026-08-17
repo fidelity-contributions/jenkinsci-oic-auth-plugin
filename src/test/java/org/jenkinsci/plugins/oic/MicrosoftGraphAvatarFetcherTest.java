@@ -8,9 +8,13 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import hudson.util.Secret;
+import java.io.IOException;
 import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -71,6 +75,28 @@ class MicrosoftGraphAvatarFetcherTest {
 
         assertNull(dataUrl);
     }
+
+        @Test
+        void defaultsMissingContentTypeToJpeg() throws Exception {
+                wireMock.stubFor(get(urlPathEqualTo("/no-content-type"))
+                                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", " ").withBody(new byte[] {1})));
+
+                String dataUrl = new MicrosoftGraphAvatarFetcher(
+                                                URI.create(wireMock.url("/no-content-type")).toURL(),
+                                                ProxyAwareResourceRetriever.createProxyAwareResourceRetriver(false))
+                                .fetchAsDataUrl(credentials("token"));
+
+                assertEquals("data:image/jpeg;base64,AQ==", dataUrl);
+        }
+
+        @Test
+        void returnsNullWhenConnectionFails() throws Exception {
+                ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
+                when(retriever.openHTTPConnection(any())).thenThrow(new IOException("connection failed"));
+
+                assertNull(new MicrosoftGraphAvatarFetcher(MicrosoftGraphAvatarFetcher.defaultEndpointUrl(), retriever)
+                                .fetchAsDataUrl(credentials("token")));
+        }
 
     @Test
     void identifiesDefaultEndpoint() throws Exception {
