@@ -67,8 +67,8 @@ class OicAvatarPropertyTest {
 
     @Test
     void returnsDirectUrlForNonDataAvatar(JenkinsRule rule) {
-        OicAvatarProperty property = new OicAvatarProperty(
-                new OicAvatarProperty.AvatarImage("https://example.org/avatar.png"));
+        OicAvatarProperty property =
+                new OicAvatarProperty(new OicAvatarProperty.AvatarImage("https://example.org/avatar.png"));
 
         assertTrue(property.isHasAvatar());
         assertEquals("https://example.org/avatar.png", property.getAvatarUrl());

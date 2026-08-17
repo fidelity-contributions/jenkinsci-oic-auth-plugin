@@ -8,14 +8,18 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import hudson.model.User;
 import hudson.util.Secret;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.htmlunit.Page;
 import org.junit.jupiter.api.Assertions;
@@ -263,4 +267,53 @@ class OicSecurityRealmTest {
         assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://example.org/my-avatar.png"));
         assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl(null));
     }
+
+        @Test
+        void addsUserReadScopeForMicrosoftEntraIssuer(JenkinsRule jenkinsRule) throws Exception {
+                TestRealm realm = new TestRealm.Builder(wireMock)
+                                .WithMinimalDefaults()
+                                .WithIssuer("https://tenant.login.microsoftonline.com/")
+                                .WithScopes("openid email")
+                                .build();
+
+                assertTrue(realm.buildOidcClient().getConfiguration().getScope().toString().contains("User.Read"));
+        }
+
+        @Test
+        void recognizesMicrosoftEntraIssuerAndDelegatesGraphAvatarFetch(JenkinsRule jenkinsRule) throws Exception {
+                TestRealm realm = new TestRealm.Builder(wireMock)
+                                .WithMinimalDefaults()
+                                .WithIssuer("https://login.microsoft.com/")
+                                .build();
+
+                Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
+                isEntra.setAccessible(true);
+                assertTrue((Boolean) isEntra.invoke(realm));
+
+                Method createAvatarImage = OicSecurityRealm.class.getDeclaredMethod(
+                                "createAvatarImage", String.class, OicCredentials.class);
+                createAvatarImage.setAccessible(true);
+                assertNull(createAvatarImage.invoke(
+                                realm, "https://graph.microsoft.com/v1.0/me/photo/$value", null));
+        }
+
+            @Test
+            void usesGraphEndpointWhenEntraUserHasNoPictureClaim(JenkinsRule jenkinsRule) throws Exception {
+                TestRealm realm = new TestRealm.Builder(wireMock)
+                        .WithMinimalDefaults()
+                        .WithIssuer("https://tenant.login.microsoftonline.com/")
+                        .build();
+                Method loginAndSetUserData = OicSecurityRealm.class.getDeclaredMethod(
+                        "loginAndSetUserData", String.class, com.nimbusds.jwt.JWT.class, Map.class, OicCredentials.class);
+                loginAndSetUserData.setAccessible(true);
+
+                loginAndSetUserData.invoke(
+                        realm,
+                        "entra-avatar-user",
+                        null,
+                        Map.of("sub", "entra-avatar-user"),
+                        new OicCredentials(null, null, null, null, null, null));
+
+                assertTrue(User.getById("entra-avatar-user", false).getProperty(OicAvatarProperty.class) != null);
+            }
 }
