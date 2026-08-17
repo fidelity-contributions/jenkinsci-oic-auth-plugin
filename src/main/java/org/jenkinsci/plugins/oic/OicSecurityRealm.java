@@ -927,7 +927,7 @@ public class OicSecurityRealm extends SecurityRealm {
     private boolean isMicrosoftEntraProvider() {
         URI issuer =
                 URI.create(serverConfiguration.toProviderMetadata().getIssuer().toString());
-        if (issuer == null || issuer.getHost() == null) {
+        if (issuer.getHost() == null) {
             return false;
         }
         String host = issuer.getHost().toLowerCase();

@@ -45,6 +45,7 @@ class OicAvatarPropertyTest {
 
     @Test
     void rejectsMalformedDataUrls() throws Exception {
+        assertFalse(new OicAvatarProperty.AvatarImage(null).isDataUrl());
         assertFalse(new OicAvatarProperty.AvatarImage("not-a-data-url").isDataUrl());
         OicAvatarProperty nonDataProperty = new OicAvatarProperty(new OicAvatarProperty.AvatarImage("not-a-data-url"));
         StaplerResponse2 nonDataResponse = mock(StaplerResponse2.class);
