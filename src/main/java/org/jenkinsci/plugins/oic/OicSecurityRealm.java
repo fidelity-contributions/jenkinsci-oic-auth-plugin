@@ -902,7 +902,7 @@ public class OicSecurityRealm extends SecurityRealm {
         OicAvatarProperty.AvatarImage avatarImage =
                 avatarUrl == null ? null : new OicAvatarProperty.AvatarImage(avatarUrl);
         if (avatarImage != null) {
-            LOGGER.finest("Avatar url is: " + avatarUrl);
+            LOGGER.finest("Avatar url is: " + sanitizeForLog(avatarUrl));
             oicAvatarProperty = new OicAvatarProperty(avatarImage);
         } else {
             LOGGER.finest(() -> "No avatar URL found for user " + user.getId() + ". Ensure to remove existing avatar");
@@ -915,6 +915,10 @@ public class OicSecurityRealm extends SecurityRealm {
         OicUserDetails userDetails = new OicUserDetails(userName, grantedAuthorities);
         SecurityListener.fireAuthenticated2(userDetails);
         SecurityListener.fireLoggedIn(userName);
+    }
+
+    static String sanitizeForLog(String value) {
+        return value == null ? null : value.replace('\r', ' ').replace('\n', ' ');
     }
 
     protected MicrosoftGraphAvatarFetcher createMicrosoftGraphAvatarFetcher() throws MalformedURLException {
