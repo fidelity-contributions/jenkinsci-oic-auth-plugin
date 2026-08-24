@@ -25,7 +25,8 @@ class MicrosoftGraphAvatarFetcherTest {
 
         assertEquals(
                 "data:image/png;base64,AQID",
-                new MicrosoftGraphAvatarFetcher(URI.create("https://graph.microsoft.com/photo").toURL(), retriever)
+                new MicrosoftGraphAvatarFetcher(
+                                URI.create("https://graph.microsoft.com/photo").toURL(), retriever)
                         .fetchAsDataUrl(credentials("access-token")));
     }
 
@@ -38,7 +39,8 @@ class MicrosoftGraphAvatarFetcherTest {
         ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
         when(retriever.openHTTPConnection(any())).thenReturn(connection);
 
-        assertNull(new MicrosoftGraphAvatarFetcher(URI.create("https://graph.microsoft.com/photo").toURL(), retriever)
+        assertNull(new MicrosoftGraphAvatarFetcher(
+                        URI.create("https://graph.microsoft.com/photo").toURL(), retriever)
                 .fetchAsDataUrl(credentials("token")));
     }
 
@@ -46,8 +48,8 @@ class MicrosoftGraphAvatarFetcherTest {
     void handlesMissingTokenAndConnectionFailure() throws Exception {
         ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
         when(retriever.openHTTPConnection(any())).thenThrow(new IOException("connection failed"));
-        MicrosoftGraphAvatarFetcher fetcher = new MicrosoftGraphAvatarFetcher(
-                MicrosoftGraphAvatarFetcher.defaultEndpointUrl(), retriever);
+        MicrosoftGraphAvatarFetcher fetcher =
+                new MicrosoftGraphAvatarFetcher(MicrosoftGraphAvatarFetcher.defaultEndpointUrl(), retriever);
 
         assertNull(fetcher.fetchAsDataUrl(null));
         assertNull(fetcher.fetchAsDataUrl(credentials("token")));
@@ -59,21 +61,22 @@ class MicrosoftGraphAvatarFetcherTest {
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_NOT_FOUND);
         ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
         when(retriever.openHTTPConnection(any())).thenReturn(connection);
-        MicrosoftGraphAvatarFetcher fetcher = new MicrosoftGraphAvatarFetcher(
-                MicrosoftGraphAvatarFetcher.defaultEndpointUrl(), retriever);
+        MicrosoftGraphAvatarFetcher fetcher =
+                new MicrosoftGraphAvatarFetcher(MicrosoftGraphAvatarFetcher.defaultEndpointUrl(), retriever);
         assertNull(fetcher.fetchAsDataUrl(credentials("token")));
 
         when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
         when(connection.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
         assertNull(fetcher.fetchAsDataUrl(credentials("token")));
-        when(connection.getInputStream()).thenReturn(new ByteArrayInputStream(
-                new byte[OicAvatarProperty.AvatarImage.MAX_SIZE + 1]));
+        when(connection.getInputStream())
+                .thenReturn(new ByteArrayInputStream(new byte[OicAvatarProperty.AvatarImage.MAX_SIZE + 1]));
         assertNull(fetcher.fetchAsDataUrl(credentials("token")));
     }
 
     @Test
     void detectsGraphPhotoUrls() {
-        assertEquals(true, MicrosoftGraphAvatarFetcher.isGraphPhotoUrl("https://graph.microsoft.com/v1.0/me/photo/$value"));
+        assertEquals(
+                true, MicrosoftGraphAvatarFetcher.isGraphPhotoUrl("https://graph.microsoft.com/v1.0/me/photo/$value"));
         assertEquals(false, MicrosoftGraphAvatarFetcher.isGraphPhotoUrl("https://example.org/avatar.png"));
         assertEquals(false, MicrosoftGraphAvatarFetcher.isGraphPhotoUrl(null));
     }

@@ -8,9 +8,9 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import hudson.util.Secret;
@@ -35,14 +35,13 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 @WithJenkins
 class OicSecurityRealmTest {
-        @Test
-        void sanitizesLineBreaksFromLogValues() {
-                assertEquals("avatar  url  value", OicSecurityRealm.sanitizeForLog("avatar\r\nurl\nvalue"));
-                assertNull(OicSecurityRealm.sanitizeForLog(null));
-                String value = "avatar-url";
-                assertSame(value, OicSecurityRealm.sanitizeForLog(value));
-        }
-
+    @Test
+    void sanitizesLineBreaksFromLogValues() {
+        assertEquals("avatar  url value", OicSecurityRealm.sanitizeForLog("avatar\r\nurl\nvalue"));
+        assertNull(OicSecurityRealm.sanitizeForLog(null));
+        String value = "avatar-url";
+        assertSame(value, OicSecurityRealm.sanitizeForLog(value));
+    }
 
     public static final String ADMIN = "admin";
 
