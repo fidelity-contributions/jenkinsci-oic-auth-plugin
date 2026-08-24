@@ -8,24 +8,13 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
-import hudson.model.User;
 import hudson.util.Secret;
-import java.io.ByteArrayInputStream;
-import java.lang.reflect.Method;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.htmlunit.Page;
 import org.junit.jupiter.api.Assertions;
@@ -261,120 +250,5 @@ class OicSecurityRealmTest {
                             hasItemInArray("blah%3Awibble=anything%3Ahere"),
                             hasItemInArray("emailaddr=joe%40example.com")));
         }
-    }
-
-    @Test
-    void testProtectedAvatarUrlDetection() {
-        assertTrue(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com/v1.0/me/photo/$value"));
-        assertTrue(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com/beta/me/photo/$value"));
-        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com"));
-        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://graph.microsoft.com/v1.0/me/photo"));
-        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("http://[invalid"));
-        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("https://example.org/my-avatar.png"));
-        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl(null));
-    }
-
-    @Test
-    void addsUserReadScopeForMicrosoftEntraIssuer(JenkinsRule jenkinsRule) throws Exception {
-        TestRealm realm = new TestRealm.Builder(wireMock)
-                .WithMinimalDefaults()
-                        .WithIssuer("https://tenant.login.microsoftonline.com/")
-                        .WithScopes("openid email")
-                        .build();
-
-        assertTrue(
-                realm.buildOidcClient().getConfiguration().getScope().toString().contains("User.Read"));
-    }
-
-    @Test
-    void preservesExistingUserReadScopeForMicrosoftEntraIssuer(JenkinsRule jenkinsRule) throws Exception {
-        TestRealm realm = new TestRealm.Builder(wireMock)
-                .WithMinimalDefaults()
-                        .WithIssuer("https://tenant.login.microsoftonline.com/")
-                        .WithScopes("openid email User.Read")
-                        .build();
-
-        assertEquals(
-                "openid email User.Read",
-                realm.buildOidcClient().getConfiguration().getScope().toString());
-    }
-
-    @Test
-    void recognizesMicrosoftEntraIssuerAndDelegatesGraphAvatarFetch(JenkinsRule jenkinsRule) throws Exception {
-        TestRealm realm = new TestRealm.Builder(wireMock)
-                .WithMinimalDefaults()
-                        .WithIssuer("https://login.microsoft.com/")
-                        .build();
-
-        Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
-        isEntra.setAccessible(true);
-        assertTrue((Boolean) isEntra.invoke(realm));
-
-        Method createAvatarImage =
-                OicSecurityRealm.class.getDeclaredMethod("createAvatarImage", String.class, OicCredentials.class);
-        createAvatarImage.setAccessible(true);
-        assertNull(createAvatarImage.invoke(realm, "https://graph.microsoft.com/v1.0/me/photo/$value", null));
-    }
-
-    @Test
-    void createsAvatarImageWhenGraphFetchSucceeds(JenkinsRule jenkinsRule) throws Exception {
-        TestRealm realm = org.mockito.Mockito.spy(
-                new TestRealm.Builder(wireMock).WithMinimalDefaults().build());
-        ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
-        HttpURLConnection connection = mock(HttpURLConnection.class);
-        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
-        when(connection.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[] {1}));
-        when(connection.getContentType()).thenReturn("image/png");
-        when(retriever.openHTTPConnection(any())).thenReturn(connection);
-        doReturn(retriever).when(realm).getResourceRetriever();
-
-        Method createAvatarImage =
-                OicSecurityRealm.class.getDeclaredMethod("createAvatarImage", String.class, OicCredentials.class);
-        createAvatarImage.setAccessible(true);
-        Object avatarImage = createAvatarImage.invoke(
-                realm,
-                "https://graph.microsoft.com/v1.0/me/photo/$value",
-                new OicCredentials("token", null, null, 3600L, 0L, 0L));
-
-        assertNotNull(avatarImage);
-    }
-
-    @Test
-    void recognizesStsWindowsIssuerAndRejectsHttpGraphUrl(JenkinsRule jenkinsRule) throws Exception {
-        TestRealm realm = new TestRealm.Builder(wireMock)
-                .WithMinimalDefaults().WithIssuer("https://sts.windows.net/").build();
-        Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
-        isEntra.setAccessible(true);
-        assertTrue((Boolean) isEntra.invoke(realm));
-        assertFalse(OicSecurityRealm.isLikelyProtectedAvatarUrl("http://graph.microsoft.com/v1.0/me/photo/$value"));
-    }
-
-    @Test
-    void returnsFalseForIssuerWithoutHost(JenkinsRule jenkinsRule) throws Exception {
-        TestRealm realm = new TestRealm.Builder(wireMock)
-                .WithMinimalDefaults().WithIssuer("issuer").build();
-        Method isEntra = OicSecurityRealm.class.getDeclaredMethod("isMicrosoftEntraProvider");
-        isEntra.setAccessible(true);
-        assertFalse((Boolean) isEntra.invoke(realm));
-    }
-
-    @Test
-    void usesGraphEndpointWhenEntraUserHasNoPictureClaim(JenkinsRule jenkinsRule) throws Exception {
-        TestRealm realm = new TestRealm.Builder(wireMock)
-                .WithMinimalDefaults()
-                        .WithIssuer("https://tenant.login.microsoftonline.com/")
-                        .build();
-        Method loginAndSetUserData = OicSecurityRealm.class.getDeclaredMethod(
-                "loginAndSetUserData", String.class, com.nimbusds.jwt.JWT.class, Map.class, OicCredentials.class);
-        loginAndSetUserData.setAccessible(true);
-
-        loginAndSetUserData.invoke(
-                realm,
-                "entra-avatar-user",
-                null,
-                Map.of("sub", "entra-avatar-user"),
-                new OicCredentials(null, null, null, null, null, null));
-
-        assertTrue(User.getById("entra-avatar-user", false).getProperty(OicAvatarProperty.class) != null);
     }
 }

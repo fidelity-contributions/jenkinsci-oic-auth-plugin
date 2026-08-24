@@ -35,6 +35,7 @@ class OicAvatarPropertyTest {
         property.doImage(response);
 
         verify(response).setContentType("image/png");
+        verify(response).setHeader("X-Content-Type-Options", "nosniff");
         verify(output).write(new byte[] {1, 2, 3});
         assertEquals(dataUrl, property.getAvatarUrlForUser(null));
 
@@ -59,6 +60,14 @@ class OicAvatarPropertyTest {
         assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,").isValid());
         assertFalse(new OicAvatarProperty.AvatarImage("data:text/plain;base64,QQ==").isValid());
         assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64,not-base64").isValid());
+        assertFalse(new OicAvatarProperty.AvatarImage("data:image/svg+xml;base64,QQ==").isValid());
+        assertFalse(new OicAvatarProperty.AvatarImage("data:image/x-custom;base64,QQ==").isValid());
+        assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;charset=utf-8;base64,QQ==").isValid());
+        OicAvatarProperty unsafeProperty = new OicAvatarProperty(
+                new OicAvatarProperty.AvatarImage("data:image/svg+xml;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="));
+        StaplerResponse2 unsafeResponse = mock(StaplerResponse2.class);
+        unsafeProperty.doImage(unsafeResponse);
+        verify(unsafeResponse).sendError(404);
 
         String oversizedData = Base64.getEncoder().encodeToString(new byte[OicAvatarProperty.AvatarImage.MAX_SIZE + 1]);
         assertFalse(new OicAvatarProperty.AvatarImage("data:image/png;base64," + oversizedData).isValid());

@@ -72,7 +72,6 @@ class ConfigurationAsCodeTest {
         assertEquals("clientSecret", Secret.toString(oicSecurityRealm.getClientSecret()));
         assertTrue(oicSecurityRealm.isDisableSslVerification());
         assertEquals("emailFieldName", oicSecurityRealm.getEmailFieldName());
-        assertEquals("avatarFieldName", oicSecurityRealm.getAvatarFieldName());
         var escapeHatch = oicSecurityRealm.getProperties().get(EscapeHatch.class);
         assertThat(escapeHatch, notNullValue());
         assertThat(escapeHatch.getUsername(), is("escapeHatchUsername"));
@@ -82,6 +81,7 @@ class ConfigurationAsCodeTest {
                 is("$2a$10$fxteEkfDqwqkmUelZmTxlu9WESjVDKQhp6jsqB1AgsLQ2dC6jikga"));
         assertEquals("fullNameFieldName", oicSecurityRealm.getFullNameFieldName());
         assertEquals("groupsFieldName", oicSecurityRealm.getGroupsFieldName());
+        assertTrue(oicSecurityRealm.isUseMicrosoftGraphForAvatar());
         assertTrue(oicSecurityRealm.isLogoutFromOpenidProvider());
         assertEquals("scopes", serverConf.getScopes());
         assertEquals("http://localhost/token", serverConf.getTokenServerUrl());
@@ -148,7 +148,6 @@ class ConfigurationAsCodeTest {
         assertNull(oicSecurityRealm.getEmailFieldName());
         assertNull(oicSecurityRealm.getFullNameFieldName());
         assertNull(oicSecurityRealm.getGroupsFieldName());
-        assertEquals("picture", oicSecurityRealm.getAvatarFieldName());
         assertEquals("openid email", serverConf.getScopes());
         assertEquals("http://localhost/token", serverConf.getTokenServerUrl());
         assertEquals(TokenAuthMethod.client_secret_post, serverConf.getTokenAuthMethod());
@@ -176,7 +175,6 @@ class ConfigurationAsCodeTest {
         assertNull(oicSecurityRealm.getEmailFieldName());
         assertNull(oicSecurityRealm.getFullNameFieldName());
         assertNull(oicSecurityRealm.getGroupsFieldName());
-        assertEquals("picture", oicSecurityRealm.getAvatarFieldName());
 
         assertEquals("clientId", oicSecurityRealm.getClientId());
         assertEquals("clientSecret", Secret.toString(oicSecurityRealm.getClientSecret()));

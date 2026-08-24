@@ -100,16 +100,7 @@ They are called claims in OpenID Connect terminology.
 | emailFieldName    | jmes path | claim to use for populating user email                                  |
 | groupsFieldName   | jmes path | groups the user belongs to                                              |
 
-The optional `avatarFieldName` field accepts a JMESPath expression for avatar URL claim extraction.
-By default it is `picture`; set it to an empty value to disable avatar synchronization.
-
-For Microsoft Entra ID, the plugin automatically requests the user's photo from Microsoft Graph at
-`https://graph.microsoft.com/v1.0/me/photo/$value` when the configured avatar claim does not provide a URL.
-The photo is fetched server-side with the user's access token and served through Jenkins, so the browser does not
-need access to Microsoft Graph or the bearer token. The Entra application must grant delegated Microsoft Graph
-`User.Read` permission and the requested OIDC scopes must include `User.Read`.
-
-For other OIDC providers, the configured claim must provide a browser-accessible avatar URL.
+The standard OIDC `picture` claim is used for the user's avatar when available.
 
 ## Properties
 
@@ -168,7 +159,6 @@ jenkins:
       groupsFieldName: <string:jmes path>
       fullNameFieldName: <string:jmes path>
       emailFieldName: <string:jmes path>
-      avatarFieldName: <string:jmes path>
       # advanced configuration
       logoutFromOpenidProvider: <boolean>
       rootURLFromRequest: <boolean>

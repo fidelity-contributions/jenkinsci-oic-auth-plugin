@@ -1,4 +1,3 @@
-avatarFieldName: "avatarFieldName"
 clientId: "clientId"
 disableSslVerification: true
 emailFieldName: "emailFieldName"
@@ -32,5 +31,6 @@ serverConfiguration:
     jwksServerUrl: "http://localhost/jwks"
     scopes: "scopes"
     tokenServerUrl: "http://localhost/token"
+useMicrosoftGraphForAvatar: true
 userIdStrategy: "caseInsensitive"
 userNameField: "userNameField"

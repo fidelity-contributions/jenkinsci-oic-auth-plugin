@@ -13,9 +13,9 @@ jenkins:
       clientSecret: clientSecret
       disableSslVerification: true
       emailFieldName: emailFieldName
-      avatarFieldName: avatarFieldName
       fullNameFieldName: fullNameFieldName
       groupsFieldName: groupsFieldName
+      useMicrosoftGraphForAvatar: true
       logoutFromOpenidProvider: true
       userNameField: userNameField
       rootURLFromRequest: true

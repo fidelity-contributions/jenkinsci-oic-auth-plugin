@@ -8,6 +8,7 @@ import hudson.model.UserProperty;
 import hudson.model.UserPropertyDescriptor;
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Set;
 import jenkins.security.csp.AvatarContributor;
 import org.kohsuke.accmod.restrictions.suppressions.SuppressRestrictedWarnings;
 import org.kohsuke.stapler.StaplerResponse2;
@@ -61,6 +62,7 @@ public class OicAvatarProperty extends UserProperty implements Action {
             return;
         }
         response.setContentType(data.contentType());
+        response.setHeader("X-Content-Type-Options", "nosniff");
         response.getOutputStream().write(data.bytes());
     }
 
@@ -123,10 +125,17 @@ public class OicAvatarProperty extends UserProperty implements Action {
             return null;
         }
         String metadata = dataUrl.substring(5, separator);
-        if (!metadata.contains(";base64") || !metadata.startsWith("image/")) {
+        if (!metadata.endsWith(";base64")) {
             return null;
         }
-        String contentType = metadata.substring(0, metadata.indexOf(';'));
+        int metadataSeparator = metadata.indexOf(';');
+        String contentType = metadata.substring(0, metadataSeparator);
+        if (!metadata.equals(contentType + ";base64")) {
+            return null;
+        }
+        if (!Set.of("image/gif", "image/jpeg", "image/png", "image/webp").contains(contentType)) {
+            return null;
+        }
         try {
             byte[] bytes = Base64.getDecoder().decode(dataUrl.substring(separator + 1));
             return bytes.length > AvatarImage.MAX_SIZE ? null : new AvatarData(contentType, bytes);

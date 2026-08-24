@@ -64,14 +64,6 @@ public class PluginTestAsserts {
         }
     }
 
-    public static void assertNoAvatar(User user) {
-        OicAvatarProperty avatarProperty = user.getProperty(OicAvatarProperty.class);
-        assertNotNull(avatarProperty);
-        assertNull(avatarProperty.getAvatarUrl(), "Avatar url should be null when avatar sync is disabled");
-        String urlViaAvatarResolver = UserAvatarResolver.resolve(user, "48x48");
-        assertEquals("symbol-person-circle", urlViaAvatarResolver, "Avatar should fallback to default symbol");
-    }
-
     public static void assertAvatarUrl(User user, String expectedAvatarUrl) {
         OicAvatarProperty avatarProperty = user.getProperty(OicAvatarProperty.class);
         assertNotNull(avatarProperty);

@@ -17,7 +17,6 @@ import static org.jenkinsci.plugins.oic.TestRealm.EMAIL_FIELD;
 import static org.jenkinsci.plugins.oic.TestRealm.FULL_NAME_FIELD;
 import static org.jenkinsci.plugins.oic.TestRealm.GROUPS_FIELD;
 import static org.jenkinsci.plugins.oic.plugintest.PluginTestAsserts.assertAnonymous;
-import static org.jenkinsci.plugins.oic.plugintest.PluginTestAsserts.assertNoAvatar;
 import static org.jenkinsci.plugins.oic.plugintest.PluginTestAsserts.assertTestAvatar;
 import static org.jenkinsci.plugins.oic.plugintest.PluginTestAsserts.assertTestUser;
 import static org.jenkinsci.plugins.oic.plugintest.PluginTestAsserts.assertTestUserEmail;
@@ -317,25 +316,6 @@ class PluginTest {
         var user = assertTestUser(webClient);
         assertTestUserEmail(user);
         assertTestAvatar(user, wireMock);
-    }
-
-    @Test
-    void testLoginCanDisableAvatarSynchronization() throws Exception {
-        mockAuthorizationRedirectsToFinishLogin(wireMock, jenkins);
-        mockTokenReturnsIdTokenWithoutValues(wireMock);
-        mockUserInfoWithAvatar(wireMock);
-        configureWellKnown(wireMock, null, null);
-
-        var realm = new TestRealm(wireMock, null, EMAIL_FIELD, GROUPS_FIELD, true);
-        realm.setAvatarFieldName("");
-        jenkins.setSecurityRealm(realm);
-
-        assertAnonymous(webClient);
-        browseLoginPage(webClient, jenkins);
-
-        var user = assertTestUser(webClient);
-        assertTestUserEmail(user);
-        assertNoAvatar(user);
     }
 
     @Test
