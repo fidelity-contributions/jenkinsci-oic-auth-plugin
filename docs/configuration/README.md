@@ -10,7 +10,6 @@ There are specifics instructions for well known providers:
 * [Google Provider](GOOGLE.md)
 * [Gitlab Provider](GITLAB.md)
 * [Microsoft AD FS](ADFS.md)
-* [Microsoft Entra ID](ENTRA.md)
 
 This page contains the reference of plugin's configuration.
 
@@ -70,11 +69,12 @@ If the JWKS endpoint is configured, JWS' signatures will be verified
 Providers have some variation in their implementation of OpenID Connect
 or some oddities they required.
 
-| field                     | format   | description                                                                                         |
-|---------------------------|----------|-----------------------------------------------------------------------------------------------------|
-| logoutFromOpenidProvider  | boolean  | Enable the logout from provider when user logout from Jenkins.                                      |
-| sendScopesInTokenRequest  | boolean  | Some providers expects scopes to be sent in token request                                           |
-| rootURLFromRequest        | boolean  | When computing Jenkins redirect, the root url is either deduced from configured root url or request |
+| field                       | format   | description                                                                                                                       |
+|-----------------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------|
+| logoutFromOpenidProvider    | boolean  | Enable the logout from provider when user logout from Jenkins.                                                                    |
+| sendScopesInTokenRequest    | boolean  | Some providers expects scopes to be sent in token request                                                                         |
+| rootURLFromRequest          | boolean  | When computing Jenkins redirect, the root url is either deduced from configured root url or request                               |
+| useMicrosoftGraphForAvatar  | boolean  | When enabled, fetches avatars from Microsoft Graph for providers such as Entra ID (default: `false`)                              |
 
 ### Security configuration
 
@@ -101,6 +101,9 @@ They are called claims in OpenID Connect terminology.
 | groupsFieldName   | jmes path | groups the user belongs to                                              |
 
 The standard OIDC `picture` claim is used for the user's avatar when available.
+When `useMicrosoftGraphForAvatar` is enabled, the plugin can fetch the user's photo from Microsoft Graph server-side
+when the `picture` claim is missing or contains a Graph photo URL. This option is disabled by default and requires
+the delegated Microsoft Graph `User.Read` permission. The browser never receives the access token.
 
 ## Properties
 
@@ -164,6 +167,7 @@ jenkins:
       rootURLFromRequest: <boolean>
       sendScopesInTokenRequest: <boolean>
       postLogoutRedirectUrl: <url>
+      useMicrosoftGraphForAvatar: <boolean>
       # Security
       allowTokenAccessWithoutOicSession: <boolean>
       disableSslVerification: <boolean>
