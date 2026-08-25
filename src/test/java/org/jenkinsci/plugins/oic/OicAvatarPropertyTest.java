@@ -1,7 +1,7 @@
 package org.jenkinsci.plugins.oic;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -110,8 +110,8 @@ class OicAvatarPropertyTest {
         byte[] content = new byte[] {1, 2, 3};
         User user = User.getById("disk-avatar-user", true);
         user.save();
-        OicAvatarProperty property = new OicAvatarProperty(
-                user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", content)));
+        OicAvatarProperty property =
+                new OicAvatarProperty(user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", content)));
         user.addProperty(property);
 
         java.io.File avatarFile = new java.io.File(user.getUserFolder(), "oic-avatar");
@@ -122,8 +122,8 @@ class OicAvatarPropertyTest {
         StaplerResponse2 response = mock(StaplerResponse2.class);
         property.doImage(response);
 
-        verify(response).serveFile(
-                isNull(), any(), eq(avatarFile.lastModified()), eq(avatarFile.length()), eq("image/png"));
+        verify(response)
+                .serveFile(isNull(), any(), eq(avatarFile.lastModified()), eq(avatarFile.length()), eq("image/png"));
     }
 
     @Test
