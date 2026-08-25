@@ -122,6 +122,7 @@ class OicAvatarPropertyTest {
         assertTrue(avatarFile.isFile());
         assertArrayEquals(content, Files.readAllBytes(avatarFile.toPath()));
         assertEquals(user.getUrl() + "/oic-avatar/image", property.getAvatarUrlForUser(user));
+        assertNull(property.getAvatarUrlForUser(null));
 
         StaplerResponse2 response = mock(StaplerResponse2.class);
         property.doImage(response);
