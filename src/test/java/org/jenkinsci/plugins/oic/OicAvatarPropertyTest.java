@@ -17,6 +17,7 @@ import static org.mockito.Mockito.when;
 import hudson.model.User;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.Base64;
@@ -143,11 +144,13 @@ class OicAvatarPropertyTest {
     void wrapsServeFileFailure(JenkinsRule rule) throws Exception {
         User user = User.getById("serve-failure-avatar-user", true);
         user.save();
-        OicAvatarProperty property = new OicAvatarProperty(
-                user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", new byte[] {1})));
+        OicAvatarProperty property =
+                new OicAvatarProperty(user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", new byte[] {1})));
         user.addProperty(property);
         StaplerResponse2 response = mock(StaplerResponse2.class);
-        doThrow(new ServletException("serve failed")).when(response).serveFile(any(), any(), any(Long.TYPE), any(Long.TYPE), any());
+        doThrow(new ServletException("serve failed"))
+                .when(response)
+                .serveFile(any(), any(), any(Long.TYPE), any(Long.TYPE), any());
 
         IOException exception = assertThrows(IOException.class, () -> property.doImage(response));
         assertEquals("Unable to serve avatar", exception.getMessage());
