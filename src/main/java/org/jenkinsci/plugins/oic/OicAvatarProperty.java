@@ -37,7 +37,11 @@ public class OicAvatarProperty extends UserProperty implements Action {
         this.avatarImage = null;
         this.avatarFileName = "oic-avatar";
         this.avatarContentType = data.contentType();
-        java.nio.file.Files.write(user.getUserFolder().toPath().resolve(avatarFileName), data.bytes());
+        java.io.File userFolder = user.getUserFolder();
+        if (userFolder == null) {
+            throw new IOException("Unable to store avatar because the user folder is unavailable");
+        }
+        java.nio.file.Files.write(userFolder.toPath().resolve(avatarFileName), data.bytes());
     }
 
     public String getAvatarUrl() {
@@ -70,7 +74,8 @@ public class OicAvatarProperty extends UserProperty implements Action {
 
     public boolean isHasAvatar() {
         if (avatarFileName != null) {
-            return user != null && new java.io.File(user.getUserFolder(), avatarFileName).isFile();
+            java.io.File userFolder = user == null ? null : user.getUserFolder();
+            return userFolder != null && new java.io.File(userFolder, avatarFileName).isFile();
         }
         return avatarImage != null && avatarImage.isValid();
     }
@@ -89,21 +94,24 @@ public class OicAvatarProperty extends UserProperty implements Action {
 
     public void doImage(StaplerResponse2 response) throws IOException {
         if (avatarFileName != null && user != null) {
-            java.io.File avatarFile = new java.io.File(user.getUserFolder(), avatarFileName);
-            if (avatarFile.isFile()) {
-                try (java.io.InputStream input = java.nio.file.Files.newInputStream(avatarFile.toPath())) {
-                    try {
-                        response.serveFile(
-                                Stapler.getCurrentRequest2(),
-                                input,
-                                avatarFile.lastModified(),
-                                avatarFile.length(),
-                                avatarContentType);
-                    } catch (jakarta.servlet.ServletException e) {
-                        throw new IOException("Unable to serve avatar", e);
+            java.io.File userFolder = user.getUserFolder();
+            if (userFolder != null) {
+                java.io.File avatarFile = new java.io.File(userFolder, avatarFileName);
+                if (avatarFile.isFile()) {
+                    try (java.io.InputStream input = java.nio.file.Files.newInputStream(avatarFile.toPath())) {
+                        try {
+                            response.serveFile(
+                                    Stapler.getCurrentRequest2(),
+                                    input,
+                                    avatarFile.lastModified(),
+                                    avatarFile.length(),
+                                    avatarContentType);
+                        } catch (jakarta.servlet.ServletException e) {
+                            throw new IOException("Unable to serve avatar", e);
+                        }
                     }
+                    return;
                 }
-                return;
             }
         }
         AvatarData data = avatarImage == null ? null : parseDataUrl(avatarImage.url);

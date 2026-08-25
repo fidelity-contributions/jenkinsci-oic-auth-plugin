@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -124,6 +125,16 @@ class OicAvatarPropertyTest {
 
         verify(response)
                 .serveFile(isNull(), any(), eq(avatarFile.lastModified()), eq(avatarFile.length()), eq("image/png"));
+    }
+
+    @Test
+    void rejectsDataAvatarWhenUserFolderIsUnavailable() {
+        User user = mock(User.class);
+
+        assertThrows(
+                java.io.IOException.class,
+                () -> new OicAvatarProperty(
+                        user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", new byte[] {1}))));
     }
 
     @Test
