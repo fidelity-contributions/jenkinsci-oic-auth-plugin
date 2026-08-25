@@ -1,9 +1,13 @@
 package org.jenkinsci.plugins.oic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,6 +15,7 @@ import static org.mockito.Mockito.when;
 import hudson.model.User;
 import jakarta.servlet.ServletOutputStream;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
@@ -98,6 +103,27 @@ class OicAvatarPropertyTest {
 
         assertTrue(property.isHasAvatar());
         assertEquals("https://example.org/avatar.png", property.getAvatarUrl());
+    }
+
+    @Test
+    void storesDataAvatarInUserFolderAndServesItFromDisk(JenkinsRule rule) throws Exception {
+        byte[] content = new byte[] {1, 2, 3};
+        User user = User.getById("disk-avatar-user", true);
+        user.save();
+        OicAvatarProperty property = new OicAvatarProperty(
+                user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", content)));
+        user.addProperty(property);
+
+        java.io.File avatarFile = new java.io.File(user.getUserFolder(), "oic-avatar");
+        assertTrue(avatarFile.isFile());
+        assertArrayEquals(content, Files.readAllBytes(avatarFile.toPath()));
+        assertEquals(user.getUrl() + "/oic-avatar/image", property.getAvatarUrlForUser(user));
+
+        StaplerResponse2 response = mock(StaplerResponse2.class);
+        property.doImage(response);
+
+        verify(response).serveFile(
+                isNull(), any(), eq(avatarFile.lastModified()), eq(avatarFile.length()), eq("image/png"));
     }
 
     @Test

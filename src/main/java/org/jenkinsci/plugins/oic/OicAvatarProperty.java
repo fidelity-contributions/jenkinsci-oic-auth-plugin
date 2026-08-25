@@ -11,14 +11,33 @@ import java.util.Base64;
 import java.util.Set;
 import jenkins.security.csp.AvatarContributor;
 import org.kohsuke.accmod.restrictions.suppressions.SuppressRestrictedWarnings;
+import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerResponse2;
 
 public class OicAvatarProperty extends UserProperty implements Action {
 
     private final AvatarImage avatarImage;
+    private final String avatarFileName;
+    private final String avatarContentType;
 
     public OicAvatarProperty(AvatarImage avatarImage) {
         this.avatarImage = avatarImage;
+        this.avatarFileName = null;
+        this.avatarContentType = null;
+    }
+
+    public OicAvatarProperty(User user, AvatarImage avatarImage) throws IOException {
+        AvatarData data = avatarImage == null ? null : parseDataUrl(avatarImage.url);
+        if (data == null) {
+            this.avatarImage = avatarImage;
+            this.avatarFileName = null;
+            this.avatarContentType = null;
+            return;
+        }
+        this.avatarImage = null;
+        this.avatarFileName = "oic-avatar";
+        this.avatarContentType = data.contentType();
+        java.nio.file.Files.write(user.getUserFolder().toPath().resolve(avatarFileName), data.bytes());
     }
 
     public String getAvatarUrl() {
@@ -27,6 +46,16 @@ public class OicAvatarProperty extends UserProperty implements Action {
 
     public String getAvatarUrlForUser(User avatarUser) {
         if (isHasAvatar()) {
+            if (avatarFileName != null) {
+                if (avatarUser == null) {
+                    return null;
+                }
+                String userUrl = avatarUser.getUrl();
+                if (!userUrl.endsWith("/")) {
+                    userUrl += "/";
+                }
+                return userUrl + getUrlName() + "/image";
+            }
             if (avatarImage.isDataUrl() && avatarUser != null) {
                 String userUrl = avatarUser.getUrl();
                 if (!userUrl.endsWith("/")) {
@@ -40,6 +69,9 @@ public class OicAvatarProperty extends UserProperty implements Action {
     }
 
     public boolean isHasAvatar() {
+        if (avatarFileName != null) {
+            return user != null && new java.io.File(user.getUserFolder(), avatarFileName).isFile();
+        }
         return avatarImage != null && avatarImage.isValid();
     }
 
@@ -56,6 +88,24 @@ public class OicAvatarProperty extends UserProperty implements Action {
     }
 
     public void doImage(StaplerResponse2 response) throws IOException {
+        if (avatarFileName != null && user != null) {
+            java.io.File avatarFile = new java.io.File(user.getUserFolder(), avatarFileName);
+            if (avatarFile.isFile()) {
+                try (java.io.InputStream input = java.nio.file.Files.newInputStream(avatarFile.toPath())) {
+                    try {
+                        response.serveFile(
+                                Stapler.getCurrentRequest2(),
+                                input,
+                                avatarFile.lastModified(),
+                                avatarFile.length(),
+                                avatarContentType);
+                    } catch (jakarta.servlet.ServletException e) {
+                        throw new IOException("Unable to serve avatar", e);
+                    }
+                }
+                return;
+            }
+        }
         AvatarData data = avatarImage == null ? null : parseDataUrl(avatarImage.url);
         if (data == null) {
             response.sendError(404);

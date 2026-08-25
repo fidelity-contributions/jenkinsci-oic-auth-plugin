@@ -903,7 +903,7 @@ public class OicSecurityRealm extends SecurityRealm {
                 avatarUrl == null ? null : new OicAvatarProperty.AvatarImage(avatarUrl);
         if (avatarImage != null) {
             LOGGER.finest("Avatar url is: " + sanitizeForLog(avatarUrl));
-            oicAvatarProperty = new OicAvatarProperty(avatarImage);
+            oicAvatarProperty = new OicAvatarProperty(user, avatarImage);
         } else {
             LOGGER.finest(() -> "No avatar URL found for user " + user.getId() + ". Ensure to remove existing avatar");
             oicAvatarProperty = new OicAvatarProperty(null);
