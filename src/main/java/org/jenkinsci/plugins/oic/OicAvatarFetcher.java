@@ -75,7 +75,7 @@ class OicAvatarFetcher {
             if (contentType != null) {
                 contentType = contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
             }
-            if (!AvatarData.SUPPORTED_CONTENT_TYPES.contains(contentType)) {
+            if (contentType == null || !AvatarData.SUPPORTED_CONTENT_TYPES.contains(contentType)) {
                 LOGGER.fine("Avatar download returned an unsupported content type");
                 return null;
             }
