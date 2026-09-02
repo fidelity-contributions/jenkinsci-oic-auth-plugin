@@ -27,7 +27,7 @@ The switch between modes is controlled by the `serverConfiguration` field
 |----------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | clientId             | string  | Id of the openid client obtained from the provider                                                                                                   |
 | clientSecret         | secret  | Secret associated to the client                                                                                                                      |
-| serverConfiguration  | select  | Controls endpoint configuration mode: `wellKnown` for discovery via the well-known endpoint, `manual` for manual endpoint configuration              |
+| serverConfiguration  | select  | Controls endpoint configuration mode<br />- `wellKnown`:  activate discovery via well-known endpoint <br />- `manual`: activate manual configuration | 
 
 ### Automatic configuration
 
@@ -59,7 +59,7 @@ If the JWKS endpoint is configured, JWS' signatures will be verified
 | endSessionUrl          | url     | URL to logout from provider (used if activated)                                                                                                                                                                     |
 | jwksServerUrl          | url     | URL of provider's jws certificates (unused if disabled)                                                                                                                                                             |
 | scopes                 | string  | Space separated list of scopes to request (default: `openid email`)                                                                                                                                                 |
-| tokenAuthMethod        | enum    | Method used when requesting tokens: `client_secret_basic` for HTTP Basic auth, `client_secret_post` for client id/secret in POST body                                                                               |
+| tokenAuthMethod        | enum    | Method used for authenticating when requesting token(s)<br />- `client_secret_basic`: for client id/secret as basic authentication user/pass<br />- `client_secret_post`: for client id/secret sent in post request | 
 | userInfoServerUrl      | url     | URL to get user's details                                                                                                                                                                                           |
 | useRefreshTokens       | boolean | If server supports refresh tokens, make sure to specify any additional scopes required for refresh token support.                                                                                                   |
 | issuer                 | string  | The expected received ID Token's issuer                                                                                                                                                                             |
@@ -74,7 +74,7 @@ or some oddities they required.
 | logoutFromOpenidProvider    | boolean  | Enable the logout from provider when user logout from Jenkins.                                                                    |
 | sendScopesInTokenRequest    | boolean  | Some providers expects scopes to be sent in token request                                                                         |
 | rootURLFromRequest          | boolean  | When computing Jenkins redirect, the root url is either deduced from configured root url or request                               |
-| useMicrosoftGraphForAvatar  | boolean  | When enabled, fetches avatars from Microsoft Graph for providers such as Entra ID (default: `false`)                              |
+| serveAvatarFromJenkins      | boolean  | Download the avatar from the provider on login and serve it from Jenkins (default: `false`)                                       |
 
 ### Security configuration
 
@@ -93,21 +93,23 @@ Most security feature are activated by default if possible.
 Content of idtoken or user info to use for identifying the user.
 They are called claims in OpenID Connect terminology.
 
-| field             | format    | description                                                             |
-|-------------------|-----------|-------------------------------------------------------------------------|
-| userNameField     | jmes path | claim to use as user login (default: `sub`)                             |
-| fullNameFieldName | jmes path | claim to use as name of user                                            |
-| emailFieldName    | jmes path | claim to use for populating user email                                  |
-| groupsFieldName   | jmes path | groups the user belongs to                                              |
+| field             | format    | description                                 |
+|-------------------|-----------|---------------------------------------------|
+| userNameField     | jmes path | claim to use as user login (default: `sub`) |
+| fullNameFieldName | jmes path | claim to use as name of user                |
+| emailFieldName    | jmes path | claim to use for populating user email      |
+| groupsFieldName   | jmes path | groups the user belongs to                  |
 
 The standard OIDC `picture` claim is used for the user's avatar when available.
-When `useMicrosoftGraphForAvatar` is enabled, the plugin can fetch the user's photo from Microsoft Graph server-side
-when the `picture` claim is missing or contains a Graph photo URL. This option is disabled by default and requires
-the delegated Microsoft Graph `User.Read` permission. The browser never receives the access token.
+By default the browser loads that URL directly from the identity provider, which does not work for providers that only
+serve the picture to authenticated requests. Enabling `serveAvatarFromJenkins` makes Jenkins download the image during
+login, presenting the access token when the picture is served over HTTPS, and serve it from Jenkins afterwards. The
+access token is never exposed to the browser.
 
 ## Properties
 
 Additional properties can be configured. Third-party plugins may also add new properties.
+
 
 | property                        | format          | description                                                                                  |
 |---------------------------------|-----------------|----------------------------------------------------------------------------------------------|
@@ -128,6 +130,7 @@ when calling the login resp. the logout endpoint.
 |-------|--------|--------------------------------------------------------------------|
 | name  | string | Name of the query parameter.                                       |
 | value | string | Value of the query parameter. If empty, only the key will be sent. |
+
 
 ## JCasC configuration reference
 
@@ -167,7 +170,7 @@ jenkins:
       rootURLFromRequest: <boolean>
       sendScopesInTokenRequest: <boolean>
       postLogoutRedirectUrl: <url>
-      useMicrosoftGraphForAvatar: <boolean>
+      serveAvatarFromJenkins: <boolean>
       # Security
       allowTokenAccessWithoutOicSession: <boolean>
       disableSslVerification: <boolean>

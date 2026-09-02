@@ -1,12 +1,17 @@
 package org.jenkinsci.plugins.oic;
 
+import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.Action;
 import hudson.model.User;
 import hudson.model.UserProperty;
 import hudson.model.UserPropertyDescriptor;
+import jakarta.servlet.ServletException;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Base64;
 import java.util.Set;
 import jenkins.security.csp.AvatarContributor;
@@ -16,66 +21,56 @@ import org.kohsuke.stapler.StaplerResponse2;
 
 public class OicAvatarProperty extends UserProperty implements Action {
 
-    private final AvatarImage avatarImage;
-    private final String avatarFileName;
-    private final String avatarContentType;
+    static final String AVATAR_FILE_NAME = "oic-avatar";
 
-    public OicAvatarProperty(AvatarImage avatarImage) {
+    /** Set when the avatar is referenced on the identity provider instead of being stored by Jenkins. */
+    private final AvatarImage avatarImage;
+    /** Content type of the image stored in the user folder, {@code null} when nothing is stored. */
+    private final String storedContentType;
+
+    public OicAvatarProperty(@CheckForNull AvatarImage avatarImage) {
         this.avatarImage = avatarImage;
-        this.avatarFileName = null;
-        this.avatarContentType = null;
+        this.storedContentType = null;
     }
 
-    public OicAvatarProperty(User user, AvatarImage avatarImage) throws IOException {
-        AvatarData data = avatarImage == null ? null : parseDataUrl(avatarImage.url);
-        if (data == null) {
-            this.avatarImage = avatarImage;
-            this.avatarFileName = null;
-            this.avatarContentType = null;
-            return;
-        }
+    /**
+     * Stores the image in the user's folder so that Jenkins, rather than a third party, serves it.
+     */
+    OicAvatarProperty(@NonNull User user, @NonNull AvatarData avatarData) throws IOException {
         this.avatarImage = null;
-        this.avatarFileName = "oic-avatar";
-        this.avatarContentType = data.contentType();
-        java.io.File userFolder = user.getUserFolder();
-        if (userFolder == null) {
-            throw new IOException("Unable to store avatar because the user folder is unavailable");
+        this.storedContentType = avatarData.contentType();
+        File avatarFile = avatarFile(user);
+        if (avatarFile == null) {
+            throw new IOException("Unable to store the avatar as the user folder is unavailable");
         }
-        java.nio.file.Files.write(userFolder.toPath().resolve(avatarFileName), data.bytes());
+        Files.write(avatarFile.toPath(), avatarData.bytes());
     }
 
     public String getAvatarUrl() {
         return getAvatarUrlForUser(user);
     }
 
-    public String getAvatarUrlForUser(User avatarUser) {
-        if (isHasAvatar()) {
-            if (avatarFileName != null) {
-                if (avatarUser == null) {
-                    return null;
-                }
-                String userUrl = avatarUser.getUrl();
-                if (!userUrl.endsWith("/")) {
-                    userUrl += "/";
-                }
-                return userUrl + getUrlName() + "/image";
-            }
-            if (avatarImage.isDataUrl() && avatarUser != null) {
-                String userUrl = avatarUser.getUrl();
-                if (!userUrl.endsWith("/")) {
-                    userUrl += "/";
-                }
-                return userUrl + getUrlName() + "/image";
-            }
-            return avatarImage.url;
+    public String getAvatarUrlForUser(@CheckForNull User avatarUser) {
+        if (!isHasAvatar()) {
+            return null;
         }
-        return null;
+        if (storedContentType != null || avatarImage.isDataUrl()) {
+            if (avatarUser == null) {
+                return null;
+            }
+            String userUrl = avatarUser.getUrl();
+            if (!userUrl.endsWith("/")) {
+                userUrl += "/";
+            }
+            return userUrl + getUrlName() + "/image";
+        }
+        return avatarImage.url;
     }
 
     public boolean isHasAvatar() {
-        if (avatarFileName != null) {
-            java.io.File userFolder = user == null ? null : user.getUserFolder();
-            return userFolder != null && new java.io.File(userFolder, avatarFileName).isFile();
+        if (storedContentType != null) {
+            File avatarFile = avatarFile(user);
+            return avatarFile != null && avatarFile.isFile();
         }
         return avatarImage != null && avatarImage.isValid();
     }
@@ -89,30 +84,24 @@ public class OicAvatarProperty extends UserProperty implements Action {
     }
 
     public String getUrlName() {
-        return "oic-avatar";
+        return AVATAR_FILE_NAME;
     }
 
     public void doImage(StaplerResponse2 response) throws IOException {
-        if (avatarFileName != null && user != null) {
-            java.io.File userFolder = user.getUserFolder();
-            if (userFolder != null) {
-                java.io.File avatarFile = new java.io.File(userFolder, avatarFileName);
-                if (avatarFile.isFile()) {
-                    try (java.io.InputStream input = java.nio.file.Files.newInputStream(avatarFile.toPath())) {
-                        try {
-                            response.serveFile(
-                                    Stapler.getCurrentRequest2(),
-                                    input,
-                                    avatarFile.lastModified(),
-                                    avatarFile.length(),
-                                    avatarContentType);
-                        } catch (jakarta.servlet.ServletException e) {
-                            throw new IOException("Unable to serve avatar", e);
-                        }
-                    }
-                    return;
-                }
+        File avatarFile = storedContentType == null ? null : avatarFile(user);
+        if (avatarFile != null && avatarFile.isFile()) {
+            response.setHeader("X-Content-Type-Options", "nosniff");
+            try (InputStream input = Files.newInputStream(avatarFile.toPath())) {
+                response.serveFile(
+                        Stapler.getCurrentRequest2(),
+                        input,
+                        avatarFile.lastModified(),
+                        avatarFile.length(),
+                        storedContentType);
+            } catch (ServletException e) {
+                throw new IOException("Unable to serve avatar", e);
             }
+            return;
         }
         AvatarData data = avatarImage == null ? null : parseDataUrl(avatarImage.url);
         if (data == null) {
@@ -122,6 +111,12 @@ public class OicAvatarProperty extends UserProperty implements Action {
         response.setContentType(data.contentType());
         response.setHeader("X-Content-Type-Options", "nosniff");
         response.getOutputStream().write(data.bytes());
+    }
+
+    @CheckForNull
+    private static File avatarFile(@CheckForNull User user) {
+        File userFolder = user == null ? null : user.getUserFolder();
+        return userFolder == null ? null : new File(userFolder, AVATAR_FILE_NAME);
     }
 
     @Extension
@@ -172,9 +167,13 @@ public class OicAvatarProperty extends UserProperty implements Action {
         }
     }
 
-    private record AvatarData(String contentType, byte[] bytes) {}
+    /** An avatar image that has been decoded and validated. */
+    record AvatarData(String contentType, byte[] bytes) {
+        static final Set<String> SUPPORTED_CONTENT_TYPES = Set.of("image/gif", "image/jpeg", "image/png", "image/webp");
+    }
 
-    private static AvatarData parseDataUrl(String dataUrl) {
+    @CheckForNull
+    static AvatarData parseDataUrl(@CheckForNull String dataUrl) {
         if (dataUrl == null || !dataUrl.startsWith("data:")) {
             return null;
         }
@@ -191,7 +190,7 @@ public class OicAvatarProperty extends UserProperty implements Action {
         if (!metadata.equals(contentType + ";base64")) {
             return null;
         }
-        if (!Set.of("image/gif", "image/jpeg", "image/png", "image/webp").contains(contentType)) {
+        if (!AvatarData.SUPPORTED_CONTENT_TYPES.contains(contentType)) {
             return null;
         }
         try {

@@ -24,6 +24,7 @@ properties:
     username: "escapeHatchUsername"
 rootURLFromRequest: true
 sendScopesInTokenRequest: true
+serveAvatarFromJenkins: true
 serverConfiguration:
   manual:
     authorizationServerUrl: "http://localhost/authorize"
@@ -31,6 +32,5 @@ serverConfiguration:
     jwksServerUrl: "http://localhost/jwks"
     scopes: "scopes"
     tokenServerUrl: "http://localhost/token"
-useMicrosoftGraphForAvatar: true
 userIdStrategy: "caseInsensitive"
 userNameField: "userNameField"

@@ -46,7 +46,7 @@ class OicAvatarPropertyTest {
         verify(response).setContentType("image/png");
         verify(response).setHeader("X-Content-Type-Options", "nosniff");
         verify(output).write(new byte[] {1, 2, 3});
-        assertEquals(dataUrl, property.getAvatarUrlForUser(null));
+        assertNull(property.getAvatarUrlForUser(null));
 
         User userWithTrailingSlash = mock(User.class);
         when(userWithTrailingSlash.getUrl()).thenReturn("user/avatar-user/");
@@ -110,15 +110,15 @@ class OicAvatarPropertyTest {
     }
 
     @Test
-    void storesDataAvatarInUserFolderAndServesItFromDisk(JenkinsRule rule) throws Exception {
+    void storesAvatarInUserFolderAndServesItFromDisk(JenkinsRule rule) throws Exception {
         byte[] content = new byte[] {1, 2, 3};
         User user = User.getById("disk-avatar-user", true);
         user.save();
         OicAvatarProperty property =
-                new OicAvatarProperty(user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", content)));
+                new OicAvatarProperty(user, new OicAvatarProperty.AvatarData("image/png", content));
         user.addProperty(property);
 
-        java.io.File avatarFile = new java.io.File(user.getUserFolder(), "oic-avatar");
+        java.io.File avatarFile = new java.io.File(user.getUserFolder(), OicAvatarProperty.AVATAR_FILE_NAME);
         assertTrue(avatarFile.isFile());
         assertArrayEquals(content, Files.readAllBytes(avatarFile.toPath()));
         assertEquals(user.getUrl() + "/oic-avatar/image", property.getAvatarUrlForUser(user));
@@ -127,18 +127,18 @@ class OicAvatarPropertyTest {
         StaplerResponse2 response = mock(StaplerResponse2.class);
         property.doImage(response);
 
+        verify(response).setHeader("X-Content-Type-Options", "nosniff");
         verify(response)
                 .serveFile(isNull(), any(), eq(avatarFile.lastModified()), eq(avatarFile.length()), eq("image/png"));
     }
 
     @Test
-    void rejectsDataAvatarWhenUserFolderIsUnavailable() {
+    void rejectsAvatarWhenUserFolderIsUnavailable() {
         User user = mock(User.class);
 
         assertThrows(
-                java.io.IOException.class,
-                () -> new OicAvatarProperty(
-                        user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", new byte[] {1}))));
+                IOException.class,
+                () -> new OicAvatarProperty(user, new OicAvatarProperty.AvatarData("image/png", new byte[] {1})));
     }
 
     @Test
@@ -146,7 +146,7 @@ class OicAvatarPropertyTest {
         User user = User.getById("serve-failure-avatar-user", true);
         user.save();
         OicAvatarProperty property =
-                new OicAvatarProperty(user, new OicAvatarProperty.AvatarImage(dataUrl("image/png", new byte[] {1})));
+                new OicAvatarProperty(user, new OicAvatarProperty.AvatarData("image/png", new byte[] {1}));
         user.addProperty(property);
         StaplerResponse2 response = mock(StaplerResponse2.class);
         doThrow(new ServletException("serve failed"))

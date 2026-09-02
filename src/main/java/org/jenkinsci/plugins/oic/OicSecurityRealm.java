@@ -34,6 +34,7 @@ import com.nimbusds.oauth2.sdk.token.BearerAccessToken;
 import com.nimbusds.oauth2.sdk.token.RefreshToken;
 import com.nimbusds.openid.connect.sdk.op.OIDCProviderMetadata;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.ExtensionList;
 import hudson.Util;
@@ -171,7 +172,6 @@ public class OicSecurityRealm extends SecurityRealm {
     private static final String ID_TOKEN_REQUEST_ATTRIBUTE = "oic-id-token";
     private static final String NO_SECRET = "none";
     private static final String SESSION_POST_LOGIN_REDIRECT_URL_KEY = "oic-redirect-on-login-url";
-    private static final String AVATAR_FIELD_NAME = "picture";
 
     private final String clientId;
     private final Secret clientSecret;
@@ -293,8 +293,8 @@ public class OicSecurityRealm extends SecurityRealm {
      */
     private boolean allowTokenAccessWithoutOicSession = false;
 
-    /** Flag to pull avatar from Microsoft Graph using the access token (useful for Entra ID providers) */
-    private boolean useMicrosoftGraphForAvatar = false;
+    /** Download the avatar from the provider and serve it from Jenkins instead of linking to the provider. */
+    private boolean serveAvatarFromJenkins = false;
 
     /**
      * Additional number of seconds to add to token expiration
@@ -371,7 +371,8 @@ public class OicSecurityRealm extends SecurityRealm {
         this.serverConfiguration = serverConfiguration;
         this.userIdStrategy = userIdStrategy;
         this.groupIdStrategy = groupIdStrategy;
-        this.avatarFieldExpr = compileJMESPath(AVATAR_FIELD_NAME, "avatar field");
+        this.avatarFieldExpr =
+                compileJMESPath("picture", "avatar field"); // Default on OIDC spec, part of profile claim
     }
 
     @SuppressWarnings("deprecated")
@@ -433,7 +434,8 @@ public class OicSecurityRealm extends SecurityRealm {
             this.setGroupsFieldName(this.groupsFieldName);
         }
         // ensure Field JMESPath are computed
-        this.avatarFieldExpr = compileJMESPath(AVATAR_FIELD_NAME, "avatar field");
+        this.avatarFieldExpr =
+                compileJMESPath("picture", "avatar field"); // Default on OIDC spec, part of profile claim
         this.setUserNameField(this.userNameField);
         this.setEmailFieldName(this.emailFieldName);
         this.setFullNameFieldName(this.fullNameFieldName);
@@ -559,8 +561,8 @@ public class OicSecurityRealm extends SecurityRealm {
         return allowTokenAccessWithoutOicSession;
     }
 
-    public boolean isUseMicrosoftGraphForAvatar() {
-        return useMicrosoftGraphForAvatar;
+    public boolean isServeAvatarFromJenkins() {
+        return serveAvatarFromJenkins;
     }
 
     public DescribableList<OidcProperty, OidcPropertyDescriptor> getProperties() {
@@ -596,8 +598,7 @@ public class OicSecurityRealm extends SecurityRealm {
         OIDCProviderMetadata oidcProviderMetadata = serverConfiguration.toProviderMetadata();
         if (oidcProviderMetadata.getScopes() != null) {
             // auto configuration does not need to supply scopes
-            String scopes = oidcProviderMetadata.getScopes().toString();
-            conf.setScope(scopes);
+            conf.setScope(oidcProviderMetadata.getScopes().toString());
         }
         conf.setResourceRetriever(getResourceRetriever());
         return conf;
@@ -725,8 +726,8 @@ public class OicSecurityRealm extends SecurityRealm {
     }
 
     @DataBoundSetter
-    public void setUseMicrosoftGraphForAvatar(boolean useMicrosoftGraphForAvatar) {
-        this.useMicrosoftGraphForAvatar = useMicrosoftGraphForAvatar;
+    public void setServeAvatarFromJenkins(boolean serveAvatarFromJenkins) {
+        this.serveAvatarFromJenkins = serveAvatarFromJenkins;
     }
 
     @Override
@@ -884,31 +885,7 @@ public class OicSecurityRealm extends SecurityRealm {
 
         // Set avatar if possible
         String avatarUrl = determineStringField(avatarFieldExpr, idToken, userInfo);
-        if (useMicrosoftGraphForAvatar) {
-            try {
-                String graphAvatarDataUrl = createMicrosoftGraphAvatarFetcher().fetchAsDataUrl(credentials);
-                if (graphAvatarDataUrl != null) {
-                    avatarUrl = graphAvatarDataUrl;
-                } else if (MicrosoftGraphAvatarFetcher.isGraphPhotoUrl(avatarUrl)) {
-                    LOGGER.fine(
-                            "Skipping direct Microsoft Graph picture URL because browser requests cannot include bearer tokens.");
-                    avatarUrl = null;
-                }
-            } catch (MalformedURLException e) {
-                LOGGER.log(Level.WARNING, "Invalid Microsoft Graph avatar endpoint URL", e);
-            }
-        }
-        OicAvatarProperty oicAvatarProperty;
-        OicAvatarProperty.AvatarImage avatarImage =
-                avatarUrl == null ? null : new OicAvatarProperty.AvatarImage(avatarUrl);
-        if (avatarImage != null) {
-            LOGGER.finest("Avatar url is: " + sanitizeForLog(avatarUrl));
-            oicAvatarProperty = new OicAvatarProperty(user, avatarImage);
-        } else {
-            LOGGER.finest(() -> "No avatar URL found for user " + user.getId() + ". Ensure to remove existing avatar");
-            oicAvatarProperty = new OicAvatarProperty(null);
-        }
-        user.addProperty(oicAvatarProperty);
+        user.addProperty(createAvatarProperty(user, avatarUrl, credentials));
 
         user.addProperty(credentials);
 
@@ -917,13 +894,31 @@ public class OicSecurityRealm extends SecurityRealm {
         SecurityListener.fireLoggedIn(userName);
     }
 
-    static String sanitizeForLog(String value) {
-        return value == null ? null : value.replace('\r', ' ').replace('\n', ' ');
+    private OicAvatarProperty createAvatarProperty(
+            @NonNull User user, @CheckForNull String avatarUrl, @NonNull OicCredentials credentials)
+            throws IOException {
+        if (avatarUrl == null) {
+            LOGGER.finest(() -> "No avatar URL found for user " + user.getId() + ". Ensure to remove existing avatar");
+            return new OicAvatarProperty(null);
+        }
+        LOGGER.finest(() -> "Avatar url is: " + sanitizeForLog(avatarUrl));
+        if (serveAvatarFromJenkins) {
+            OicAvatarProperty.AvatarData avatarData = OicAvatarProperty.parseDataUrl(avatarUrl);
+            if (avatarData == null) {
+                avatarData = new OicAvatarFetcher(getResourceRetriever())
+                        .fetch(avatarUrl, Util.fixEmptyAndTrim(credentials.getAccessToken()));
+            }
+            if (avatarData == null) {
+                LOGGER.fine(() -> "Could not download the avatar of user " + user.getId());
+                return new OicAvatarProperty(null);
+            }
+            return new OicAvatarProperty(user, avatarData);
+        }
+        return new OicAvatarProperty(new OicAvatarProperty.AvatarImage(avatarUrl));
     }
 
-    protected MicrosoftGraphAvatarFetcher createMicrosoftGraphAvatarFetcher() throws MalformedURLException {
-        return new MicrosoftGraphAvatarFetcher(
-                MicrosoftGraphAvatarFetcher.defaultEndpointUrl(), getResourceRetriever());
+    static String sanitizeForLog(String value) {
+        return value == null ? null : value.replace('\r', ' ').replace('\n', ' ');
     }
 
     private String determineStringField(Expression<Object> fieldExpr, JWT idToken, Map<String, Object> userInfo)

@@ -15,7 +15,7 @@ jenkins:
       emailFieldName: emailFieldName
       fullNameFieldName: fullNameFieldName
       groupsFieldName: groupsFieldName
-      useMicrosoftGraphForAvatar: true
+      serveAvatarFromJenkins: true
       logoutFromOpenidProvider: true
       userNameField: userNameField
       rootURLFromRequest: true
