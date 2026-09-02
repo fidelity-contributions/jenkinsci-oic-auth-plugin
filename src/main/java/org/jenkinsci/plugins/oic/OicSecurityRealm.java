@@ -903,11 +903,8 @@ public class OicSecurityRealm extends SecurityRealm {
         }
         LOGGER.finest(() -> "Avatar url is: " + sanitizeForLog(avatarUrl));
         if (serveAvatarFromJenkins) {
-            OicAvatarProperty.AvatarData avatarData = OicAvatarProperty.parseDataUrl(avatarUrl);
-            if (avatarData == null) {
-                avatarData = new OicAvatarFetcher(getResourceRetriever())
-                        .fetch(avatarUrl, Util.fixEmptyAndTrim(credentials.getAccessToken()));
-            }
+            OicAvatarProperty.AvatarData avatarData = new OicAvatarFetcher(getResourceRetriever())
+                    .fetch(avatarUrl, Util.fixEmptyAndTrim(credentials.getAccessToken()));
             if (avatarData == null) {
                 LOGGER.fine(() -> "Could not download the avatar of user " + user.getId());
                 return new OicAvatarProperty(null);

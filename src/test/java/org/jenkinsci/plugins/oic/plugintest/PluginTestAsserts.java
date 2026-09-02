@@ -69,7 +69,10 @@ public class PluginTestAsserts {
         assertNotNull(avatarProperty);
         assertEquals(expectedAvatarUrl, avatarProperty.getAvatarUrl(), "Avatar url should be " + expectedAvatarUrl);
         String urlViaAvatarResolver = UserAvatarResolver.resolve(user, "48x48");
-        assertEquals(expectedAvatarUrl, urlViaAvatarResolver, "Avatar url should be " + expectedAvatarUrl);
+        assertEquals(
+                expectedAvatarUrl == null ? "symbol-person-circle" : expectedAvatarUrl,
+                urlViaAvatarResolver,
+                "Avatar url should be " + expectedAvatarUrl);
     }
 
     public static void assertTestUserIsMemberOfGroups(User user, String... testUserGroups) {

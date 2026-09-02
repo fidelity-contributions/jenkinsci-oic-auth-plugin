@@ -142,6 +142,23 @@ class OicAvatarPropertyTest {
     }
 
     @Test
+    void reportsNoAvatarWhenTheStoredFileIsGone(JenkinsRule rule) throws Exception {
+        User user = User.getById("deleted-avatar-user", true);
+        user.save();
+        OicAvatarProperty property =
+                new OicAvatarProperty(user, new OicAvatarProperty.AvatarData("image/png", new byte[] {1}));
+        user.addProperty(property);
+        Files.delete(new java.io.File(user.getUserFolder(), OicAvatarProperty.AVATAR_FILE_NAME).toPath());
+
+        assertFalse(property.isHasAvatar());
+        assertNull(property.getAvatarUrlForUser(user));
+
+        StaplerResponse2 response = mock(StaplerResponse2.class);
+        property.doImage(response);
+        verify(response).sendError(404);
+    }
+
+    @Test
     void wrapsServeFileFailure(JenkinsRule rule) throws Exception {
         User user = User.getById("serve-failure-avatar-user", true);
         user.save();

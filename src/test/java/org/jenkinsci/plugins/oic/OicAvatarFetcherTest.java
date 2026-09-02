@@ -57,12 +57,32 @@ class OicAvatarFetcherTest {
     }
 
     @Test
+    void rejectsMissingContentType() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        when(connection.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
+        when(connection.getContentType()).thenReturn(" ");
+
+        assertNull(fetcher(connection).fetch("https://example.org/avatar.png", null));
+    }
+
+    @Test
+    void decodesInlineDataUrlsWithoutConnecting() throws Exception {
+        ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
+
+        AvatarData data = new OicAvatarFetcher(retriever).fetch("data:image/png;base64,AQID", null);
+
+        assertEquals("image/png", data.contentType());
+        assertArrayEquals(new byte[] {1, 2, 3}, data.bytes());
+        verify(retriever, never()).openHTTPConnection(any());
+    }
+
+    @Test
     void rejectsUnsupportedProtocolsAndInvalidUrls() throws Exception {
         ProxyAwareResourceRetriever retriever = mock(ProxyAwareResourceRetriever.class);
         OicAvatarFetcher fetcher = new OicAvatarFetcher(retriever);
 
         assertNull(fetcher.fetch("file:///etc/passwd", null));
-        assertNull(fetcher.fetch("data:image/png;base64,QQ==", null));
+        assertNull(fetcher.fetch("data:image/png;base64,not-base64", null));
         assertNull(fetcher.fetch("not a url", null));
         verify(retriever, never()).openHTTPConnection(any());
     }

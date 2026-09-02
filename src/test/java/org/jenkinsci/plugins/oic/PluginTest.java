@@ -345,6 +345,28 @@ class PluginTest {
     }
 
     @Test
+    void testLoginWithAvatarServedFromJenkinsWhenDownloadFails() throws Exception {
+        mockAuthorizationRedirectsToFinishLogin(wireMock, jenkins);
+        mockTokenReturnsIdTokenWithoutValues(wireMock);
+        mockUserInfoWithAvatar(wireMock);
+        configureWellKnown(wireMock, null, null);
+
+        wireMock.stubFor(
+                get(urlPathEqualTo("/my-avatar.png")).willReturn(aResponse().withStatus(404)));
+
+        jenkins.setSecurityRealm(new TestRealm.Builder(wireMock)
+                .WithMinimalDefaults()
+                        .WithAutomanualconfigure(true)
+                        .WithDisableSslVerification(true)
+                        .WithServeAvatarFromJenkins(true)
+                        .build());
+        browseLoginPage(webClient, jenkins);
+
+        var user = assertTestUser(webClient);
+        assertAvatarUrl(user, null);
+    }
+
+    @Test
     void testLoginWithMinimalConfiguration() throws Exception {
         mockAuthorizationRedirectsToFinishLogin(wireMock, jenkins);
         mockTokenReturnsIdTokenWithGroup(wireMock);

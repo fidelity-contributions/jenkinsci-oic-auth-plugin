@@ -17,10 +17,8 @@ import org.jenkinsci.plugins.oic.OicAvatarProperty.AvatarData;
 /**
  * Downloads the image referenced by the OIDC {@code picture} claim so that it can be served by Jenkins.
  *
- * <p>Some providers only expose the picture through an endpoint that requires the access token (for example the
- * <a href="https://learn.microsoft.com/en-us/entra/identity-platform/userinfo">Microsoft Graph photo URL</a>), which a
- * browser can never load directly. Fetching the image server side works for those providers without requiring any
- * provider specific configuration.
+ * <p>Some providers only serve the picture to requests carrying the access token, which a browser can never do.
+ * Fetching the image server side works for those providers without any provider specific configuration.
  */
 class OicAvatarFetcher {
 
@@ -33,12 +31,16 @@ class OicAvatarFetcher {
     }
 
     /**
-     * @param avatarUrl the {@code http} or {@code https} URL of the image to download
+     * @param avatarUrl an inline {@code data:} URL, or the {@code http}/{@code https} URL of the image to download
      * @param accessToken the access token to present to the provider, or {@code null} to fetch anonymously
-     * @return the downloaded image, or {@code null} if it could not be retrieved or is not a supported image
+     * @return the image, or {@code null} if it could not be retrieved or is not a supported image
      */
     @CheckForNull
     AvatarData fetch(@NonNull String avatarUrl, @CheckForNull String accessToken) {
+        AvatarData inlineData = OicAvatarProperty.parseDataUrl(avatarUrl);
+        if (inlineData != null) {
+            return inlineData;
+        }
         URL url;
         try {
             url = new URI(avatarUrl).toURL();
